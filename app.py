@@ -5,21 +5,41 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageDraw
 import os
 import uuid
 import numpy as np
-import cv2  # ADD THIS IMPORT
+import base64
+from io import BytesIO
 
-app = Flask(__name__)
+# FIX 1: cv2 made optional so Vercel doesn't crash if not installed
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
+# FIX 2: Absolute paths so Vercel finds templates/static folders
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+app = Flask(__name__,
+            template_folder=os.path.join(BASE_DIR, 'templates'),
+            static_folder=os.path.join(BASE_DIR, 'static'))
 app.secret_key = 'super_secret_key_123_change_me'
 
 # ==================== CONFIG ====================
-UPLOAD_FOLDER = os.path.join('static', 'uploads')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'tiff'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Function to convert PIL image to base64 for display
+def pil_to_base64(img):
+    buffered = BytesIO()
+    # Convert to RGB if necessary
+    if img.mode in ('RGBA', 'LA', 'P'):
+        img = img.convert('RGBA')
+        img.save(buffered, format="PNG")
+    else:
+        img = img.convert('RGB')
+        img.save(buffered, format="JPEG", quality=95)
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f"data:image/{'png' if img.mode == 'RGBA' else 'jpeg'};base64,{img_str}"
 
 # ========== Enhancement Function 2k and 4k ===========
 
@@ -81,8 +101,7 @@ def enhance_to_4k(img):
         new_height = int(height * scale_factor)
         
         # Multi-step upscaling for better quality
-        # This reduces artifacts compared to single-step upscaling
-        intermediate_factor = scale_factor ** 0.5  # Square root for 2-step scaling
+        intermediate_factor = scale_factor ** 0.5
         intermediate_width = int(width * intermediate_factor)
         intermediate_height = int(height * intermediate_factor)
         
@@ -99,35 +118,26 @@ def enhance_to_4k(img):
         )
     
     # Advanced enhancement pipeline
-    # Convert to numpy array for advanced processing
     img_array = np.array(img)
     
-    # Check if image is grayscale (2D) or color (3D)
-    if len(img_array.shape) == 3:  # Color image
-        # Apply bilateral filter for noise reduction while preserving edges
+    if CV2_AVAILABLE and len(img_array.shape) == 3:
         img_array = cv2.bilateralFilter(img_array, 9, 75, 75)
     
-    # Convert back to PIL Image
     img = Image.fromarray(img_array)
     
-    # Smart sharpening - gentle but effective
+    # Smart sharpening
     img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
     
-    # Apply CLAHE for local contrast enhancement (if image is color)
-    if len(img_array.shape) == 3:
+    # Apply CLAHE for local contrast enhancement
+    if CV2_AVAILABLE and len(img_array.shape) == 3:
         try:
-            # Convert to LAB color space
             lab = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
             l_channel, a_channel, b_channel = cv2.split(lab)
             
-            # Apply CLAHE to L channel
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             l_channel = clahe.apply(l_channel)
             
-            # Merge channels back
             lab = cv2.merge((l_channel, a_channel, b_channel))
-            
-            # Convert back to RGB
             enhanced_array = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
             img = Image.fromarray(enhanced_array)
         except Exception as e:
@@ -135,13 +145,13 @@ def enhance_to_4k(img):
     
     # Final touch-ups
     enhancer = ImageEnhance.Sharpness(img)
-    img = enhancer.enhance(1.3)  # Slight sharpening boost
+    img = enhancer.enhance(1.3)
     
     enhancer = ImageEnhance.Color(img)
-    img = enhancer.enhance(1.1)  # Subtle color enhancement
+    img = enhancer.enhance(1.1)
     
     enhancer = ImageEnhance.Contrast(img)
-    img = enhancer.enhance(1.05)  # Minimal contrast boost
+    img = enhancer.enhance(1.05)
     
     return img
 
@@ -189,16 +199,13 @@ def apply_cinematic_dark(img, strength=1.0):
     draw_mask = ImageDraw.Draw(mask)
     draw_mask.rectangle([0, 0, width, height], fill=255)
     
-    # Darken corners with soft oval
     overlay = Image.new("L", img.size, 0)
     draw_overlay = ImageDraw.Draw(overlay)
     draw_overlay.ellipse([-200, -200, width+200, height+200], fill=180)
     mask = Image.composite(mask, overlay, overlay)
 
-    # Blur for smoothness
     mask = mask.filter(ImageFilter.GaussianBlur(radius=120))
 
-    # Apply vignette
     img_np = np.array(img)
     mask_np = np.array(mask) / 255.0
     img_np = (img_np * mask_np[:, :, None]).astype(np.uint8)
@@ -236,51 +243,49 @@ def apply_4k_pro(img, strength=1.0):
 # ==================== PORTRAIT MODE (AI + Fallback) ====================
 def apply_portrait_mode(img_path, blur_strength=15, edge_smoothness=7):
     try:
-        image = cv2.imread(img_path)
-        if image is None:
-            raise Exception("OpenCV failed to load image")
+        if CV2_AVAILABLE:
+            image = cv2.imread(img_path)
+            if image is None:
+                raise Exception("OpenCV failed to load image")
 
-        # Fallback to simple oval if MediaPipe not available
-        try:
-            import mediapipe as mp
-            
-            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            mp_selfie = mp.solutions.selfie_segmentation
-            with mp_selfie.SelfieSegmentation(model_selection=1) as selfie_seg:
-                results = selfie_seg.process(rgb_image)
-                mask = results.segmentation_mask
-
-                # Create binary mask with threshold
-                mask = (mask > 0.6).astype(np.uint8) * 255
-                mask = cv2.GaussianBlur(mask, (edge_smoothness * 2 + 1, edge_smoothness * 2 + 1), 0)
-
-                # Strong background blur
-                blurred_bg = cv2.GaussianBlur(image, (101, 101), blur_strength)
-
-                # Combine sharp subject + blurred background
-                mask_3d = mask[:, :, np.newaxis]
-                result = np.where(mask_3d == 255, image, blurred_bg)
-
-                result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
-                return Image.fromarray(result_rgb)
+            try:
+                import mediapipe as mp
                 
-        except ImportError:
-            # Use simple oval if MediaPipe not installed
-            print("MediaPipe not installed → using simple oval portrait mode")
-            img = Image.open(img_path).convert("RGB")
-            w, h = img.size
-            mask = Image.new("L", img.size, 0)
-            draw = ImageDraw.Draw(mask)
-            padding_x = w * 0.15
-            padding_y = h * 0.15
-            draw.ellipse((padding_x, padding_y, w - padding_x, h - padding_y), fill=255)
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                mp_selfie = mp.solutions.selfie_segmentation
+                with mp_selfie.SelfieSegmentation(model_selection=1) as selfie_seg:
+                    results = selfie_seg.process(rgb_image)
+                    mask = results.segmentation_mask
 
-            blurred = img.filter(ImageFilter.GaussianBlur(blur_strength * 1.8))
-            return Image.composite(img, blurred, mask)
+                    mask = (mask > 0.6).astype(np.uint8) * 255
+                    mask = cv2.GaussianBlur(mask, (edge_smoothness * 2 + 1, edge_smoothness * 2 + 1), 0)
+
+                    blurred_bg = cv2.GaussianBlur(image, (101, 101), blur_strength)
+
+                    mask_3d = mask[:, :, np.newaxis]
+                    result = np.where(mask_3d == 255, image, blurred_bg)
+
+                    result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+                    return Image.fromarray(result_rgb)
+                    
+            except ImportError:
+                pass
+
+        # Use simple oval if MediaPipe/cv2 not installed
+        print("cv2/MediaPipe not available → using simple oval portrait mode")
+        img = Image.open(img_path).convert("RGB")
+        w, h = img.size
+        mask = Image.new("L", img.size, 0)
+        draw = ImageDraw.Draw(mask)
+        padding_x = w * 0.15
+        padding_y = h * 0.15
+        draw.ellipse((padding_x, padding_y, w - padding_x, h - padding_y), fill=255)
+
+        blurred = img.filter(ImageFilter.GaussianBlur(blur_strength * 1.8))
+        return Image.composite(img, blurred, mask)
 
     except Exception as e:
         print(f"Portrait mode error: {e}")
-        # Return original image as fallback
         return Image.open(img_path)
 
 
@@ -361,7 +366,7 @@ def process_image(img, feature, form_data):
 
         elif feature == 'portrait':
             # Save temporary file for OpenCV/MediaPipe
-            temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{uuid.uuid4().hex[:8]}.jpg")
+            temp_path = os.path.join('/tmp', f"temp_{uuid.uuid4().hex[:8]}.jpg")
             img.save(temp_path, "JPEG", quality=95)
             blur_val = int(form_data.get('portrait_blur', 15))
             smooth_val = int(form_data.get('portrait_smooth', 7))
@@ -372,7 +377,6 @@ def process_image(img, feature, form_data):
             return result
 
         else:
-            # Return original if no feature matched
             return img
 
     except Exception as e:
@@ -383,85 +387,85 @@ def process_image(img, feature, form_data):
 # ==================== ROUTES ====================
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    original_image = None
-    processed_image = None
+    # Initialize variables
+    original_image_data = None
+    processed_image_data = None
+
+    print(f"Request method: {request.method}")  # Debug log
 
     if request.method == 'POST':
+        print("Processing POST request")  # Debug log
+        
         if 'image' not in request.files:
+            print("No image in request.files")  # Debug log
             flash('No file selected')
             return redirect(url_for('index'))
 
         file = request.files['image']
         if file.filename == '':
+            print("Empty filename")  # Debug log
             flash('No file selected')
             return redirect(url_for('index'))
 
         if not allowed_file(file.filename):
+            print(f"Invalid file type: {file.filename}")  # Debug log
             flash('Invalid file type')
             return redirect(url_for('index'))
 
-        # Save original
-        filename = secure_filename(file.filename)
-        unique_id = uuid.uuid4().hex[:8]
-        original_image = f"orig_{unique_id}_{filename}"
-        processed_image = f"proc_{unique_id}_{filename}"
-
-        original_path = os.path.join(app.config['UPLOAD_FOLDER'], original_image)
-        file.save(original_path)
+        # Read file data
+        file_data = file.read()
+        print(f"File read, size: {len(file_data)} bytes")  # Debug log
+        
+        # Convert original to base64 for display
+        original_image_data = base64.b64encode(file_data).decode()
+        # Detect image type from filename
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        mime_type = 'jpeg' if ext in ['jpg', 'jpeg'] else ext
+        original_image_data = f"data:image/{mime_type};base64,{original_image_data}"
+        print(f"Original image base64 created: {original_image_data[:50]}...")  # Debug log
 
         feature = request.form.get('feature')
+        print(f"Feature selected: {feature}")  # Debug log
+        
         if not feature:
+            print("No feature selected")  # Debug log
             flash('Please select a processing feature')
             return redirect(url_for('index'))
 
         try:
-            img = Image.open(original_path)
+            # Open image from bytes
+            img = Image.open(BytesIO(file_data))
+            print(f"Image opened: {img.size}, mode: {img.mode}")  # Debug log
+            
+            # Process the image
             result_img = process_image(img, feature, request.form)
+            print(f"Image processed, result: {result_img is not None}")  # Debug log
 
             if result_img:
-                result_path = os.path.join(app.config['UPLOAD_FOLDER'], processed_image)
-                # Save as JPEG or PNG based on format
-                if filename.lower().endswith('.png'):
-                    result_img.save(result_path, 'PNG', optimize=True)
-                else:
-                    result_img.save(result_path, 'JPEG', quality=95, optimize=True)
+                # Convert processed image to base64
+                processed_image_data = pil_to_base64(result_img)
+                print(f"Processed image base64 created: {processed_image_data[:50]}...")  # Debug log
                 flash('Image processed successfully!')
             else:
+                print("Processing returned None")  # Debug log
                 flash('Processing failed')
-                processed_image = None
                 
         except Exception as e:
+            print(f"Error in route: {e}")  # Debug log
+            import traceback
+            traceback.print_exc()  # Print full error
             flash(f'Error processing image: {str(e)}')
-            print(f"Route error: {e}")
-            processed_image = None
 
+        print(f"Rendering template with original={bool(original_image_data)}, processed={bool(processed_image_data)}")  # Debug log
         return render_template('index.html',
-                               original_image=original_image,
-                               processed_image=processed_image)
+                               original_image=original_image_data,
+                               processed_image=processed_image_data)
 
-    return render_template('index.html')
-
-
-@app.route('/download/<filename>')
-def download(filename):
-    try:
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
-    except:
-        flash('File not found')
-        return redirect(url_for('index'))
+    return render_template('index.html',
+                           original_image=None,
+                           processed_image=None)
 
 
 if __name__ == '__main__':
-    print("=" * 50)
-    print("ImageMagic Pro - Professional Image Processing App")
-    print("=" * 50)
-    print("Features Available:")
-    print("1. Enhance to 2K/4K")
-    print("2. Cinematic Dark (CapCut Style)")
-    print("3. 4K Pro Look")
-    print("4. Portrait Mode")
-    print("5. Grayscale, Resize, Rotate, etc.")
-    print("=" * 50)
-    print("App running on http://localhost:5000")
-    print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, host='0.0.0.0', port=port)
