@@ -1,4 +1,4 @@
-# app.py - Fixed for Vercel Deployment
+# app.py - Fixed for Vercel Deployment (no OpenCV)
 from flask import Flask, render_template, request, flash, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageDraw
@@ -6,18 +6,11 @@ import os
 import uuid
 import numpy as np
 
-# OpenCV - optional, graceful fallback if not available
-try:
-    import cv2
-    CV2_AVAILABLE = True
-except ImportError:
-    CV2_AVAILABLE = False
-
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_123_change_me'
 
 # ==================== CONFIG ====================
-# Vercel uses /tmp for writable storage
+# Vercel only allows writing to /tmp
 UPLOAD_FOLDER = '/tmp/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -28,10 +21,9 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ========== Enhancement Function 2k and 4k ===========
-
+# ==================== ENHANCE 2K ====================
 def enhance_to_2k(img):
-    """Enhance image to 2K quality (2048x2048 or similar)"""
+    img = img.convert("RGB")
     width, height = img.size
     target_max_dim = 2048
 
@@ -42,7 +34,6 @@ def enhance_to_2k(img):
         else:
             new_height = target_max_dim
             new_width = int(width * (target_max_dim / height))
-
         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
@@ -50,12 +41,12 @@ def enhance_to_2k(img):
     img = ImageEnhance.Sharpness(img).enhance(1.5)
     img = ImageEnhance.Color(img).enhance(1.15)
     img = ImageEnhance.Contrast(img).enhance(1.1)
-
     return img
 
 
+# ==================== ENHANCE 4K ====================
 def enhance_to_4k(img):
-    """Enhance image to 4K quality (3840x2160 or similar)"""
+    img = img.convert("RGB")
     width, height = img.size
     target_max_dim = 3840
 
@@ -68,50 +59,21 @@ def enhance_to_4k(img):
         intermediate_width = int(width * intermediate_factor)
         intermediate_height = int(height * intermediate_factor)
 
-        intermediate_img = img.resize(
-            (intermediate_width, intermediate_height),
-            Image.Resampling.LANCZOS
-        )
-        img = intermediate_img.resize(
-            (new_width, new_height),
-            Image.Resampling.LANCZOS
-        )
+        intermediate_img = img.resize((intermediate_width, intermediate_height), Image.Resampling.LANCZOS)
+        img = intermediate_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-    img_array = np.array(img)
-
-    if CV2_AVAILABLE and len(img_array.shape) == 3:
-        try:
-            img_array = cv2.bilateralFilter(img_array, 9, 75, 75)
-            img = Image.fromarray(img_array)
-
-            img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
-
-            lab = cv2.cvtColor(img_array, cv2.COLOR_RGB2LAB)
-            l_channel, a_channel, b_channel = cv2.split(lab)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            l_channel = clahe.apply(l_channel)
-            lab = cv2.merge((l_channel, a_channel, b_channel))
-            enhanced_array = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
-            img = Image.fromarray(enhanced_array)
-        except Exception as e:
-            print(f"CV2 processing skipped: {e}")
-    else:
-        # Fallback without OpenCV
-        img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
-
+    img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
     img = ImageEnhance.Sharpness(img).enhance(1.3)
     img = ImageEnhance.Color(img).enhance(1.1)
     img = ImageEnhance.Contrast(img).enhance(1.05)
-
     return img
 
 
-# ==================== CINEMATIC DARK (CapCut Style) ====================
+# ==================== CINEMATIC DARK ====================
 def apply_cinematic_dark(img, strength=1.0):
     img = img.convert("RGB")
     width, height = img.size
 
-    # Teal & Orange Look
     lab = img.convert("LAB")
     l, a, b = lab.split()
 
@@ -120,15 +82,12 @@ def apply_cinematic_dark(img, strength=1.0):
     b_np = np.array(b)
 
     shadow_mask = l_np < 90
-    a_np[shadow_mask] -= 25
-    b_np[shadow_mask] += 30
+    a_np[shadow_mask] = np.clip(a_np[shadow_mask] - 25, 0, 255)
+    b_np[shadow_mask] = np.clip(b_np[shadow_mask] + 30, 0, 255)
 
     skin_mask = (l_np > 100) & (a_np > 125) & (a_np < 140) & (b_np > 120)
-    a_np[skin_mask] += 25
-    b_np[skin_mask] -= 15
-
-    a_np = np.clip(a_np, 0, 255)
-    b_np = np.clip(b_np, 0, 255)
+    a_np[skin_mask] = np.clip(a_np[skin_mask] + 25, 0, 255)
+    b_np[skin_mask] = np.clip(b_np[skin_mask] - 15, 0, 255)
 
     lab_array = np.stack([l_np, a_np, b_np], axis=2).astype(np.uint8)
     img = Image.fromarray(lab_array, "LAB").convert("RGB")
@@ -136,17 +95,12 @@ def apply_cinematic_dark(img, strength=1.0):
     img = ImageEnhance.Contrast(img).enhance(1.6 * strength)
     img = ImageEnhance.Brightness(img).enhance(0.85 * strength)
 
-    # Film grain
     img_np = np.array(img)
     noise = np.random.normal(0, 12 * strength, img_np.shape)
     img_np = np.clip(img_np + noise, 0, 255).astype(np.uint8)
     img = Image.fromarray(img_np)
 
-    # Vignette
-    mask = Image.new("L", img.size, 0)
-    draw_mask = ImageDraw.Draw(mask)
-    draw_mask.rectangle([0, 0, width, height], fill=255)
-
+    mask = Image.new("L", img.size, 255)
     overlay = Image.new("L", img.size, 0)
     draw_overlay = ImageDraw.Draw(overlay)
     draw_overlay.ellipse([-200, -200, width + 200, height + 200], fill=180)
@@ -173,43 +127,22 @@ def apply_4k_pro(img, strength=1.0):
     g = g.point(lambda i: min(255, i * 0.98))
     img = Image.merge("RGB", (r, g, b))
     img = img.filter(ImageFilter.SHARPEN)
-
     return img
 
 
-# ==================== PORTRAIT MODE ====================
+# ==================== PORTRAIT MODE (PIL only) ====================
 def apply_portrait_mode(img_path, blur_strength=15, edge_smoothness=7):
     try:
-        if CV2_AVAILABLE:
-            image = cv2.imread(img_path)
-            if image is None:
-                raise Exception("OpenCV failed to load image")
-
-            try:
-                import mediapipe as mp
-                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                mp_selfie = mp.solutions.selfie_segmentation
-                with mp_selfie.SelfieSegmentation(model_selection=1) as selfie_seg:
-                    results = selfie_seg.process(rgb_image)
-                    mask = results.segmentation_mask
-                    mask = (mask > 0.6).astype(np.uint8) * 255
-                    mask = cv2.GaussianBlur(mask, (edge_smoothness * 2 + 1, edge_smoothness * 2 + 1), 0)
-                    blurred_bg = cv2.GaussianBlur(image, (101, 101), blur_strength)
-                    mask_3d = mask[:, :, np.newaxis]
-                    result = np.where(mask_3d == 255, image, blurred_bg)
-                    result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
-                    return Image.fromarray(result_rgb)
-            except ImportError:
-                pass
-
-        # Fallback: simple oval portrait mode (works without OpenCV/MediaPipe)
         img = Image.open(img_path).convert("RGB")
         w, h = img.size
+
         mask = Image.new("L", img.size, 0)
         draw = ImageDraw.Draw(mask)
         padding_x = w * 0.15
         padding_y = h * 0.15
         draw.ellipse((padding_x, padding_y, w - padding_x, h - padding_y), fill=255)
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=edge_smoothness * 3))
+
         blurred = img.filter(ImageFilter.GaussianBlur(blur_strength * 1.8))
         return Image.composite(img, blurred, mask)
 
@@ -225,46 +158,34 @@ def process_image(img, feature, form_data):
 
         if feature == 'enhance_2k':
             return enhance_to_2k(img)
-
         elif feature == 'enhance_4k':
             return enhance_to_4k(img)
-
         elif feature == 'grayscale':
-            return ImageOps.grayscale(img)
-
+            return ImageOps.grayscale(img).convert("RGB")
         elif feature == 'cinematic_dark':
             return apply_cinematic_dark(img, strength)
-
         elif feature == '4k_pro':
             return apply_4k_pro(img, strength)
-
         elif feature == 'resize':
             w = int(form_data.get('width', 800))
             h = int(form_data.get('height', 600))
             return img.resize((w, h), Image.Resampling.LANCZOS)
-
         elif feature == 'brightness':
             factor = 1 + float(form_data.get('brightness_value', 0)) / 100
             return ImageEnhance.Brightness(img).enhance(factor)
-
         elif feature == 'contrast':
             factor = float(form_data.get('contrast_value', 1.0))
             return ImageEnhance.Contrast(img).enhance(factor)
-
         elif feature == 'rotate':
             angle = int(form_data.get('angle', 90))
             return img.rotate(-angle, expand=True, resample=Image.BICUBIC)
-
         elif feature == 'edge':
             return img.convert("L").filter(ImageFilter.FIND_EDGES).convert("RGB")
-
         elif feature == 'blur':
             radius = int(form_data.get('blur_radius', 3))
             return img.filter(ImageFilter.GaussianBlur(radius))
-
         elif feature == 'sharpen':
             return img.filter(ImageFilter.SHARPEN)
-
         elif feature == 'filter':
             filter_type = form_data.get('filter_type', 'sepia')
             if filter_type == 'sepia':
@@ -289,7 +210,6 @@ def process_image(img, feature, form_data):
             elif filter_type == 'vintage':
                 gray = ImageOps.grayscale(img).convert('RGB')
                 return ImageEnhance.Contrast(gray).enhance(1.8)
-
         elif feature == 'portrait':
             temp_path = os.path.join(app.config['UPLOAD_FOLDER'], f"temp_{uuid.uuid4().hex[:8]}.jpg")
             img.save(temp_path, "JPEG", quality=95)
@@ -299,7 +219,6 @@ def process_image(img, feature, form_data):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             return result
-
         else:
             return img
 
@@ -342,7 +261,7 @@ def index():
             return redirect(url_for('index'))
 
         try:
-            img = Image.open(original_path)
+            img = Image.open(original_path).convert("RGB")
             result_img = process_image(img, feature, request.form)
 
             if result_img:
@@ -377,7 +296,6 @@ def download(filename):
         return redirect(url_for('index'))
 
 
-# Vercel runs this file directly — no app.run() needed
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
