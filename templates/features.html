@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}All 14 Image Features — ImageMagic Pro{% endblock %}
+{% block description %}Browse every ImageMagic Pro tool: 2K/4K enhancement, basic edits, effects, pro looks and image analysis checks.{% endblock %}
+{% block canonical %}{{ site_url }}/features{% endblock %}
+{% block og_title %}All 14 Image Features — ImageMagic Pro{% endblock %}
+{% block twitter_title %}All 14 Image Features{% endblock %}
+
+{% block content %}
+<section class="hero-card hero-card-small">
+    <h2 class="hero-title">All 14 image features</h2>
+    <p class="hero-copy">Every tool runs on the server with Pillow and NumPy. Open a feature to see how it works, then use it in the editor.</p>
+    <a class="btn btn-light btn-lg" href="{{ url_for('index') }}#editor">Open the editor</a>
+</section>
+
+{% for category in categories %}
+<section class="mt-4">
+    <h3 class="section-title">{{ category }}</h3>
+    <div class="row">
+        {% for item in features + analysis_features if item.category == category %}
+            <div class="col-md-6 col-lg-4">
+                <article class="card feature-card h-100">
+                    <div class="card-body">
+                        <h4 class="h5">{{ item.name }}</h4>
+                        <p>{{ item.short }}</p>
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('feature_detail', slug=item.slug) }}">Details about {{ item.name }}</a>
+                        <a class="btn btn-sm btn-link" href="{{ url_for('index', feature=item.slug) }}#editor">Use {{ item.name }} now</a>
+                    </div>
+                </article>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+{% endfor %}
+{% endblock %}

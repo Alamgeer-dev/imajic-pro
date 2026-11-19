@@ -1,8 +1,13 @@
 venv/
+.venv/
+.kilo/
+.vercel/
 __pycache__/
 *.pyc
 .env
+.env.*
 *.egg-info/
 dist/
 build/
 .DS_Store
+static/uploads/

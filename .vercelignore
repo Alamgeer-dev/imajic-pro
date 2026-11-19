@@ -1,0 +1,9 @@
+venv/
+.venv/
+.kilo/
+.git/
+static/uploads/
+tests/
+__pycache__/
+*.pyc
+*.md

@@ -144,3 +144,111 @@ body {
     .navbar-brand img { height: 60px; }
     .navbar { padding: 10px 0; margin: 10px auto; }
 }
+
+/* ====================== SSR CONTENT & SEO SECTIONS ====================== */
+.navbar { overflow: visible; }
+
+.navbar-toggler.menu-button {
+    border-color: rgba(255, 255, 255, 0.35);
+    z-index: 20;
+}
+
+.navbar-collapse {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 85%;
+    max-width: 1400px;
+    padding: 12px 0;
+    background: rgba(22, 22, 38, 0.96);
+    border-radius: 0 0 20px 20px;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+}
+
+.navbar-collapse .nav-link { color: #f8f9fa; }
+.navbar-collapse .nav-link:hover { color: #b9c2ff; }
+
+.hero-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.92), rgba(118, 75, 162, 0.92));
+    color: #fff;
+    border-radius: 20px;
+    padding: 36px;
+    margin-bottom: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.hero-card-small { padding: 28px 36px; }
+
+.hero-title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+
+.hero-copy {
+    font-size: 1.05rem;
+    max-width: 760px;
+    margin-bottom: 18px;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    margin-bottom: 16px;
+}
+
+.feature-card {
+    background: rgba(255, 255, 255, 0.94);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.feature-card p { color: #495057; }
+
+.feature-detail {
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 16px;
+}
+
+.analysis-card { border-left: 4px solid #667eea; }
+
+.step-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 14px;
+}
+
+.step-number {
+    display: block;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #667eea;
+}
+
+.parameter-group { display: none; }
+
+.site-footer {
+    background: rgba(18, 18, 32, 0.92);
+    color: #e9ecef;
+}
+
+.site-footer a { color: #cfd6ff; text-decoration: none; }
+.site-footer a:hover { color: #fff; text-decoration: underline; }
+
+.footer-links { list-style: none; padding: 0; margin: 0; }
+.footer-links li { margin-bottom: 6px; }
+
+@media (max-width: 576px) {
+    .hero-title { font-size: 1.5rem; }
+    .hero-card { padding: 24px; }
+    .navbar-collapse { width: 95%; }
+}

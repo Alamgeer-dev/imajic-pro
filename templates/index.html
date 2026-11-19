@@ -1,228 +1,331 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>imajic pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style1.css') }}">
-</head>
-<body style="background-image: url({{ url_for('static', filename='background.png') }}); background-size: cover; min-height: 100vh;">
+{% extends "base.html" %}
 
-<nav class="navbar navbar-expand-lg navbar-dark position-relative">
-    <div class="container position-relative d-flex justify-content-between align-items-center">
-        
-        <!-- Logo Left -->
-        <a class="navbar-brand" href="#">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo">
-        </a>
+{% block title %}ImageMagic Pro — Enhance, Edit & Analyse Images Online{% endblock %}
+{% block description %}Free online image editor with 14 server-side tools: 2K/4K enhancement, grayscale, resize, brightness, contrast, rotate, blur, filters, portrait mode and cinematic looks. Also check if an image is editable or AI-generated.{% endblock %}
+{% block canonical %}{{ site_url }}/{% endblock %}
+{% block og_title %}ImageMagic Pro — 14 Image Editing Tools in Your Browser{% endblock %}
+{% block og_description %}Upload, choose a feature and preview the result. Includes portrait mode, cinematic dark and AI-image indicators.{% endblock %}
+{% block twitter_title %}ImageMagic Pro — Online Image Editor{% endblock %}
+{% block twitter_description %}14 image tools plus editable and AI-image checks, powered by Flask and Pillow.{% endblock %}
 
-        <!-- Centered Title -->
-        <div class="navbar-center-content">
-            <h1 class="app-title">ImageMagic Pro</h1>
-        </div>
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is ImageMagic Pro free to use?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. All 14 image editing features and both analysis checks are free and work in your browser." }
+    },
+    {
+      "@type": "Question",
+      "name": "Are my uploaded images stored on your servers?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. Uploads are processed in memory for your request. Preview images are compressed thumbnails and generated results are kept only temporarily so you can download them." }
+    },
+    {
+      "@type": "Question",
+      "name": "Which image formats are supported?",
+      "acceptedAnswer": { "@type": "Answer", "text": "PNG, JPG, JPEG, GIF, BMP, WebP and TIFF are accepted. Animated files are processed from the first frame." }
+    },
+    {
+      "@type": "Question",
+      "name": "Can ImageMagic Pro tell if a photo was made by AI?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The AI Image Check looks for metadata markers and an experimental texture signal. It is a heuristic guide, not proof; reliable detection needs a trained model." }
+    }
+  ]
+}
+</script>
+{% endblock %}
 
-        <!-- Empty div to balance flex -->
-        <div class="navbar-brand" style="visibility: hidden;"></div>
-        
+{% block content %}
+<section class="hero-card">
+    <h2 class="hero-title">14 powerful image tools, one simple page</h2>
+    <p class="hero-copy">
+        Upload any photo, pick a feature, adjust the settings and see the result instantly.
+        Everything runs on the server with Flask, Pillow and NumPy — no installation needed.
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-light btn-lg" href="#editor">Start editing an image</a>
+        <a class="btn btn-outline-light btn-lg" href="{{ url_for('features') }}">Browse all 14 features</a>
     </div>
-</nav>
+</section>
 
-    <div class="container mt-4">
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="row" id="editor">
+    <!-- Upload form -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h2 class="h5 mb-0">Upload and process image</h2></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('index') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label" for="image">Select image</label>
+                        <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
                     </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
 
-        <div class="row">
-            <!-- Upload Form -->
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header"><h5>Upload and Process Image</h5></div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ url_for('index') }}" enctype="multipart/form-data">
-                            <div class="mb-3">
-                                <label class="form-label">Select Image</label>
-                                <input type="file" class="form-control" name="image" accept="image/*" required>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Processing Feature</label>
-                                <select class="form-select" id="feature" name="feature" required>
-                                    <option value="">Choose a feature...</option>
-                                    <option value="enhance_2k">Enhance to 2K (Upscale & Enhance)</option>
-                                    <option value="enhance_4k">Enhance to 4K (Ultra Upscale & Enhance)</option>
-                                    <option value="grayscale">Grayscale</option>
-                                    <option value="resize">Resize Image</option>
-                                    <option value="brightness">Adjust Brightness</option>
-                                    <option value="contrast">Enhance Contrast</option>
-                                    <option value="rotate">Rotate Image</option>
-                                    <option value="edge">Edge Detection</option>
-                                    <option value="blur">Blur Image</option>
-                                    <option value="sharpen">Sharpen Image</option>
-                                    <option value="filter">Apply Color Filter</option>
-                                    <option value="portrait">Portrait Mode (Blur Background)</option>
-                                    <option value="cinematic_dark">Cinematic Dark (CapCut Style)</option>
-                                    <option value="4k_pro">4K Pro Look (Ultra Sharp + Cinematic)</option>
-                                </select>
-                            </div>
-
-                            <!-- ALL DYNAMIC PARAMETER GROUPS -->
-                            <div id="resizeParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Width x Height</label>
-                                <div class="row">
-                                    <div class="col-6"><input type="number" class="form-control" name="width" value="800" min="1"></div>
-                                    <div class="col-6"><input type="number" class="form-control" name="height" value="600" min="1"></div>
-                                </div>
-                            </div>
-
-                            <div id="brightnessParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Brightness (-100 to +100)</label>
-                                <input type="range" class="form-range" name="brightness_value" min="-100" max="100" value="0">
-                                <div class="text-center"><span id="brightnessValue">0</span></div>
-                            </div>
-
-                            <div id="contrastParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Contrast (0.5 - 3.0)</label>
-                                <input type="range" class="form-range" name="contrast_value" min="0.5" max="3" step="0.1" value="1">
-                                <div class="text-center"><span id="contrastValue">1.0</span></div>
-                            </div>
-
-                            <div id="rotateParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Rotate Angle (degrees)</label>
-                                <input type="number" class="form-control" name="angle" value="90" min="-360" max="360">
-                            </div>
-
-                            <div id="blurParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Blur Radius (1-20)</label>
-                                <input type="range" class="form-range" name="blur_radius" min="1" max="20" value="3">
-                                <div class="text-center"><span id="blurValue">3</span></div>
-                            </div>
-
-                            <div id="portraitParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Background Blur Strength (1-30)</label>
-                                <input type="range" class="form-range" name="portrait_blur" min="1" max="30" value="15">
-                                <div class="text-center"><span id="portraitBlurValue">15</span></div>
-                                
-                                <label class="form-label mt-3">Subject Edge Smoothness</label>
-                                <input type="range" class="form-range" name="portrait_smooth" min="1" max="10" value="5">
-                                <div class="text-center"><span id="portraitSmoothValue">5</span></div>
-                            </div>
-
-                            <div id="cinematicParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Effect Strength</label>
-                                <input type="range" class="form-range" name="effect_strength" min="50" max="150" value="100">
-                                <div class="text-center"><span id="effectStrengthValue">100%</span></div>
-                            </div>
-
-                            <div id="filterParams" class="parameter-group mb-3" style="display: none;">
-                                <label class="form-label">Filter Type</label>
-                                <select class="form-select" name="filter_type">
-                                    <option value="sepia">Sepia</option>
-                                    <option value="warm">Warm</option>
-                                    <option value="cool">Cool</option>
-                                    <option value="vintage">Vintage</option>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn btn-primary w-100 mt-4">Process Image</button>
-                        </form>
+                    <div class="mb-3">
+                        <label class="form-label" for="feature">Processing feature</label>
+                        <select class="form-select" id="feature" name="feature" required>
+                            <option value="">Choose a feature...</option>
+                            <optgroup label="Enhance">
+                                <option value="enhance_2k">Enhance to 2K</option>
+                                <option value="enhance_4k">Enhance to 4K</option>
+                                <option value="4k_pro">4K Pro Look</option>
+                            </optgroup>
+                            <optgroup label="Basic edits">
+                                <option value="grayscale">Grayscale</option>
+                                <option value="resize">Resize Image</option>
+                                <option value="brightness">Adjust Brightness</option>
+                                <option value="contrast">Enhance Contrast</option>
+                                <option value="rotate">Rotate Image</option>
+                            </optgroup>
+                            <optgroup label="Effects">
+                                <option value="edge">Edge Detection</option>
+                                <option value="blur">Blur Image</option>
+                                <option value="sharpen">Sharpen Image</option>
+                                <option value="filter">Color Filters</option>
+                            </optgroup>
+                            <optgroup label="Pro looks">
+                                <option value="portrait">Portrait Mode</option>
+                                <option value="cinematic_dark">Cinematic Dark</option>
+                            </optgroup>
+                            <optgroup label="Image analysis">
+                                <option value="check_editable">Editable / Non-editable Check</option>
+                                <option value="detect_ai">AI Image Check</option>
+                            </optgroup>
+                        </select>
+                        <div class="form-text">Choose an analysis check to get a report instead of a processed image.</div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Preview Section -->
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header"><h5>Image Preview</h5></div>
-                    <div class="card-body text-center">
-                        {% if original_image %}
+                    <div id="resizeParams" class="parameter-group mb-3">
+                        <label class="form-label">Width × Height</label>
                         <div class="row">
-                            <div class="col-md-6">
-                                <h6>Original Image</h6>
-                                <img src="{{ original_image }}" alt="Original Image" class="img-fluid" style="max-width: 100%; height: auto; border: 2px solid #ddd; border-radius: 8px;">
-                            </div>
-                            <div class="col-md-6">
-                                {% if processed_image %}
-                                <h6>Processed Image</h6>
-                                <img src="{{ processed_image }}" alt="Processed Image" class="img-fluid" style="max-width: 100%; height: auto; border: 2px solid #ddd; border-radius: 8px;">
-                                <div class="mt-3">
-                                    <a href="{{ processed_image }}" download="processed_image.jpg" class="btn btn-success btn-lg">
-                                        ⬇ Download Processed Image
-                                    </a>
-                                </div>
-                                {% else %}
-                                <h6>Processed Image</h6>
-                                <div class="alert alert-warning">Processing in progress or failed...</div>
-                                {% endif %}
-                            </div>
+                            <div class="col-6"><input type="number" class="form-control" name="width" value="800" min="1" max="4096"></div>
+                            <div class="col-6"><input type="number" class="form-control" name="height" value="600" min="1" max="4096"></div>
                         </div>
-                        {% else %}
-                        <div class="text-center py-5">
-                            <p class="text-muted">📤 Upload an image and select a feature to get started</p>
-                        </div>
-                        {% endif %}
                     </div>
-                </div>
+
+                    <div id="brightnessParams" class="parameter-group mb-3">
+                        <label class="form-label">Brightness (-100 to +100)</label>
+                        <input type="range" class="form-range" name="brightness_value" min="-100" max="100" value="0">
+                        <div class="text-center"><span id="brightnessValue">0</span></div>
+                    </div>
+
+                    <div id="contrastParams" class="parameter-group mb-3">
+                        <label class="form-label">Contrast (0.5 – 3.0)</label>
+                        <input type="range" class="form-range" name="contrast_value" min="0.5" max="3" step="0.1" value="1">
+                        <div class="text-center"><span id="contrastValue">1.0</span></div>
+                    </div>
+
+                    <div id="rotateParams" class="parameter-group mb-3">
+                        <label class="form-label">Rotation angle (degrees)</label>
+                        <input type="number" class="form-control" name="angle" value="90" min="-360" max="360">
+                    </div>
+
+                    <div id="blurParams" class="parameter-group mb-3">
+                        <label class="form-label">Blur radius (0 – 20)</label>
+                        <input type="range" class="form-range" name="blur_radius" min="0" max="20" value="3">
+                        <div class="text-center"><span id="blurValue">3</span></div>
+                    </div>
+
+                    <div id="portraitParams" class="parameter-group mb-3">
+                        <label class="form-label">Background blur (1 – 30)</label>
+                        <input type="range" class="form-range" name="portrait_blur" min="1" max="30" value="15">
+                        <div class="text-center"><span id="portraitBlurValue">15</span></div>
+                        <label class="form-label mt-3">Edge smoothness (1 – 10)</label>
+                        <input type="range" class="form-range" name="portrait_smooth" min="1" max="10" value="5">
+                        <div class="text-center"><span id="portraitSmoothValue">5</span></div>
+                    </div>
+
+                    <div id="cinematicParams" class="parameter-group mb-3">
+                        <label class="form-label">Effect strength</label>
+                        <input type="range" class="form-range" name="effect_strength" min="50" max="150" value="100">
+                        <div class="text-center"><span id="effectStrengthValue">100%</span></div>
+                    </div>
+
+                    <div id="filterParams" class="parameter-group mb-3">
+                        <label class="form-label" for="filter_type">Filter type</label>
+                        <select class="form-select" id="filter_type" name="filter_type">
+                            <option value="sepia">Sepia</option>
+                            <option value="warm">Warm</option>
+                            <option value="cool">Cool</option>
+                            <option value="vintage">Vintage</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 mt-3">Process image</button>
+                </form>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const feature = document.getElementById('feature');
-            const groups = document.querySelectorAll('.parameter-group');
-            
-            function updateParams() {
-                groups.forEach(g => g.style.display = 'none');
-                const val = feature.value;
+    <!-- Preview -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header"><h2 class="h5 mb-0">Preview</h2></div>
+            <div class="card-body">
+                {% if analysis_result %}
+                    <div class="card analysis-card mb-3">
+                        <div class="card-header">{{ analysis_feature.name }}</div>
+                        <div class="card-body">
+                            <h3 class="h5">{{ analysis_result.verdict or analysis_result.likelihood }}</h3>
+                            {% if analysis_result.note %}<p>{{ analysis_result.note }}</p>{% endif %}
+                            {% if analysis_result.summary %}<p>{{ analysis_result.summary }}</p>{% endif %}
+                            {% if analysis_result.details %}
+                                <ul>{% for detail in analysis_result.details %}<li>{{ detail }}</li>{% endfor %}</ul>
+                            {% endif %}
+                            {% if analysis_result.markers %}
+                                <p><strong>Markers found:</strong> {{ analysis_result.markers|join(', ') }}</p>
+                            {% endif %}
+                            {% if analysis_result.texture %}
+                                <p><strong>Texture signal:</strong> {{ analysis_result.texture }}</p>
+                                <p class="small text-muted">{{ analysis_result.texture_note }}</p>
+                            {% endif %}
+                            {% if analysis_result.disclaimer %}
+                                <p class="small text-muted">{{ analysis_result.disclaimer }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
 
-                if (val === 'resize') document.getElementById('resizeParams').style.display = 'block';
-                if (val === 'brightness') document.getElementById('brightnessParams').style.display = 'block';
-                if (val === 'contrast') document.getElementById('contrastParams').style.display = 'block';
-                if (val === 'rotate') document.getElementById('rotateParams').style.display = 'block';
-                if (val === 'blur') document.getElementById('blurParams').style.display = 'block';
-                if (val === 'filter') document.getElementById('filterParams').style.display = 'block';
-                if (val === 'portrait') document.getElementById('portraitParams').style.display = 'block';
-                if (val === 'cinematic_dark' || val === '4k_pro') {
-                    document.getElementById('cinematicParams').style.display = 'block';
-                }
-            }
+                {% if original_image %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h3 class="h6">Original image</h3>
+                            <img src="{{ original_image }}" alt="Your uploaded original image"
+                                 class="img-fluid preview-image" loading="lazy">
+                        </div>
+                        <div class="col-md-6">
+                            <h3 class="h6">Processed image</h3>
+                            {% if processed_image %}
+                                <img src="{{ processed_image }}" alt="Processed result"
+                                     class="img-fluid preview-image" loading="lazy">
+                                <p class="small text-muted mt-2">
+                                    Full result: {{ result_dimensions[0] }} × {{ result_dimensions[1] }} px
+                                </p>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a href="{{ result_url }}" class="btn btn-outline-primary" target="_blank" rel="noopener">Open full image</a>
+                                    <a href="{{ download_url }}" class="btn btn-success">Download result</a>
+                                </div>
+                            {% elif analysis_result %}
+                                <p class="text-muted">The analysis report is shown above.</p>
+                            {% else %}
+                                <div class="alert alert-warning">Processing failed or is still in progress.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <p class="text-muted">Upload an image and choose a feature to get started.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 
-            feature.addEventListener('change', updateParams);
+<section class="mt-5" id="analysis">
+    <h2 class="section-title">Know your image before you edit</h2>
+    <p>Two extra checks are built into the feature list: an editable/non-editable report and a heuristic AI-image check.</p>
+    <div class="row">
+        {% for item in analysis_features %}
+            <div class="col-md-6">
+                <article class="card feature-card h-100">
+                    <div class="card-body">
+                        <h3 class="h5">{{ item.name }}</h3>
+                        <p>{{ item.short }}</p>
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('feature_detail', slug=item.slug) }}">Learn more about {{ item.name }}</a>
+                        <a class="btn btn-sm btn-link" href="{{ url_for('index', feature=item.slug) }}#editor">Use {{ item.name }}</a>
+                    </div>
+                </article>
+            </div>
+        {% endfor %}
+    </div>
+</section>
 
-            // Live slider values
-            document.querySelectorAll('input[type="range"]').forEach(slider => {
-                slider.addEventListener('input', function() {
-                    let displayId = null;
-                    
-                    if (this.name === 'brightness_value') displayId = 'brightnessValue';
-                    else if (this.name === 'contrast_value') displayId = 'contrastValue';
-                    else if (this.name === 'blur_radius') displayId = 'blurValue';
-                    else if (this.name === 'portrait_blur') displayId = 'portraitBlurValue';
-                    else if (this.name === 'portrait_smooth') displayId = 'portraitSmoothValue';
-                    else if (this.name === 'effect_strength') displayId = 'effectStrengthValue';
-                    
-                    if (displayId) {
-                        const display = document.getElementById(displayId);
-                        if (display) {
-                            display.textContent = this.name === 'effect_strength' ? this.value + '%' : this.value;
-                        }
-                    }
-                });
-            });
+<section class="mt-5" id="how-it-works">
+    <h2 class="section-title">How it works</h2>
+    <div class="row">
+        <div class="col-md-3 step-card"><span class="step-number">01</span><h3 class="h6">Upload</h3><p>Select an image from your device.</p></div>
+        <div class="col-md-3 step-card"><span class="step-number">02</span><h3 class="h6">Configure</h3><p>Pick a feature and set its controls.</p></div>
+        <div class="col-md-3 step-card"><span class="step-number">03</span><h3 class="h6">Process</h3><p>Flask runs Pillow and NumPy on the server.</p></div>
+        <div class="col-md-3 step-card"><span class="step-number">04</span><h3 class="h6">Preview</h3><p>Compare and download your result.</p></div>
+    </div>
+</section>
 
-            updateParams();
+<section class="mt-5">
+    <h2 class="section-title">All 14 features</h2>
+    <div class="row">
+        {% for item in all_features %}
+            <div class="col-md-4 col-lg-3">
+                <article class="card feature-card h-100">
+                    <div class="card-body">
+                        <span class="badge bg-secondary">{{ item.category }}</span>
+                        <h3 class="h6 mt-2">{{ item.name }}</h3>
+                        <p class="small">{{ item.short }}</p>
+                        <a href="{{ url_for('feature_detail', slug=item.slug) }}">Read more about {{ item.name }}</a>
+                    </div>
+                </article>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="mt-5" id="faq">
+    <h2 class="section-title">Frequently asked questions</h2>
+    <div class="accordion" id="faqAccordion">
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">Is ImageMagic Pro free?</button></h3>
+            <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion"><div class="accordion-body">Yes, every tool is free to use in your browser.</div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">Are my photos stored?</button></h3>
+            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body">Uploads are processed for your request only. Results are kept briefly so you can download them, then discarded.</div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">Is the AI check accurate?</button></h3>
+            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion"><div class="accordion-body">It is a heuristic based on metadata and texture statistics. It can help you spot obvious markers but it cannot prove anything.</div></div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const feature = document.getElementById('feature');
+    const groups = document.querySelectorAll('.parameter-group');
+    const preselected = {{ selected_feature|tojson }};
+    if (preselected) feature.value = preselected;
+
+    function updateParams() {
+        groups.forEach(g => g.style.display = 'none');
+        const val = feature.value;
+        const map = {
+            resize: 'resizeParams', brightness: 'brightnessParams',
+            contrast: 'contrastParams', rotate: 'rotateParams',
+            blur: 'blurParams', filter: 'filterParams', portrait: 'portraitParams'
+        };
+        if (map[val]) document.getElementById(map[val]).style.display = 'block';
+        if (val === 'cinematic_dark' || val === '4k_pro') {
+            document.getElementById('cinematicParams').style.display = 'block';
+        }
+    }
+
+    feature.addEventListener('change', updateParams);
+    document.querySelectorAll('input[type="range"]').forEach(slider => {
+        slider.addEventListener('input', function () {
+            const ids = {
+                brightness_value: 'brightnessValue', contrast_value: 'contrastValue',
+                blur_radius: 'blurValue', portrait_blur: 'portraitBlurValue',
+                portrait_smooth: 'portraitSmoothValue', effect_strength: 'effectStrengthValue'
+            };
+            const display = document.getElementById(ids[this.name]);
+            if (display) display.textContent = this.name === 'effect_strength' ? this.value + '%' : this.value;
         });
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    });
+    updateParams();
+});
+</script>
+{% endblock %}

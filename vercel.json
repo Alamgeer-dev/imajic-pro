@@ -10,9 +10,10 @@
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "app.py"
-    }
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/robots.txt", "dest": "app.py" },
+    { "src": "/sitemap.xml", "dest": "app.py" },
+    { "src": "/healthz", "dest": "app.py" },
+    { "src": "/(.*)", "dest": "app.py" }
   ]
 }
