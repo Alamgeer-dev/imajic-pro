@@ -6,6 +6,8 @@ Face-aware retouch is enabled automatically when OpenCV is installed; the
 NumPy/Pillow fallback works everywhere (including Vercel's default runtime).
 """
 
+from functools import lru_cache
+
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
@@ -20,10 +22,24 @@ TARGET_2K = 2048
 TARGET_4K = 3840
 
 PRESETS = {
+    "auto_retouch": {
+        "label": "Auto Retouch (Remini-style)",
+        "description": (
+            "One click: auto clear and adjust, detect faces, smooth skin, reduce noise, "
+            "sharpen and upscale. The sliders are filled in automatically from your image "
+            "and you can still override any of them."
+        ),
+        "settings": {"sharpen": 45, "denoise": 25, "skin": 70, "clarity": 35, "vibrance": 30, "warmth": 0},
+        "auto": True,
+    },
     "auto": {
-        "label": "Auto Enhance",
-        "description": "Balanced sharpening, light denoise and natural colour for almost any photo.",
+        "label": "Auto Clear & Adjust",
+        "description": (
+            "Automatically stretches contrast and balances colour, then adapts denoise, "
+            "clarity and sharpening to the image. Used by the classic 2K and 4K buttons."
+        ),
         "settings": {"sharpen": 45, "denoise": 25, "skin": 15, "clarity": 35, "vibrance": 30, "warmth": 5},
+        "auto": True,
     },
     "portrait": {
         "label": "Portrait Retouch",
@@ -61,6 +77,65 @@ def _report(progress, percent, message):
         progress(percent, message)
 
 
+def auto_levels(img, strength=0.65):
+    """Auto clear + colour balance: percentile stretch and grey-world gain."""
+    array = np.asarray(img, dtype=np.float32)
+    means = array.reshape(-1, 3).mean(axis=0)
+    grey = float(means.mean())
+    gains = np.clip(grey / np.maximum(means, 1.0), 0.88, 1.12)
+    balanced = array * gains
+
+    luminance = (balanced[:, :, 0] * 0.2126 + balanced[:, :, 1] * 0.7152 +
+                 balanced[:, :, 2] * 0.0722)
+    low, high = np.percentile(luminance, (2, 98))
+    if high - low < 12:
+        return Image.fromarray(np.clip(balanced, 0, 255).astype(np.uint8), "RGB")
+
+    stretched = np.clip((balanced - low) * (255.0 / (high - low)), 0, 255)
+    result = array * (1 - strength) + stretched * strength
+    return Image.fromarray(np.clip(result, 0, 255).astype(np.uint8), "RGB")
+
+
+def measure_quality(img):
+    """Cheap statistics used to choose adaptive auto settings."""
+    gray = np.asarray(img.convert("L"), dtype=np.float32)
+    low, high = np.percentile(gray, (5, 95))
+    blurred = np.asarray(img.filter(ImageFilter.GaussianBlur(1.2)), dtype=np.float32)
+    noise = float(np.mean(np.abs(np.asarray(img, dtype=np.float32) - blurred)))
+    saturation = float(np.asarray(img.convert("HSV"), dtype=np.float32)[:, :, 1].mean()) / 255.0
+    return {
+        "contrast": float((high - low) / 255.0),
+        "noise": noise,
+        "saturation": saturation,
+        "faces": len(detect_faces(img)),
+    }
+
+
+def auto_settings(img, settings):
+    """Fill in adaptive values for keys the user did not explicitly override."""
+    quality = measure_quality(img)
+    values = dict(settings)
+    explicit = set(settings.get("_explicit", ()))
+
+    def set_auto(key, value, low, high):
+        if key not in explicit:
+            values[key] = int(clamp(round(value), low, high))
+
+    set_auto("denoise", 8 + quality["noise"] * 3.5, 0, 70)
+    set_auto("clarity", 72 - quality["contrast"] * 50, 15, 85)
+    set_auto("sharpen", 32 + (1 - quality["contrast"]) * 30, 20, 75)
+    set_auto("vibrance", 20 + (1 - quality["saturation"]) * 30, 5, 50)
+
+    if quality["faces"] and "skin" not in explicit:
+        values["skin"] = max(values.get("skin", 0), 60)
+    if settings.get("preset") == "auto_retouch" and not quality["faces"] and "skin" not in explicit:
+        values["skin"] = 0
+
+    values["_quality"] = quality
+    values["_face_only"] = bool(quality["faces"])
+    return values
+
+
 def upscale(img, long_edge, fast=False):
     """Upscale on the longest side, preserving aspect ratio."""
     width, height = img.size
@@ -84,15 +159,22 @@ def denoise(img, amount):
     return img.filter(ImageFilter.MedianFilter(3 if amount < 60 else 5))
 
 
+@lru_cache(maxsize=1)
+def _face_cascade():
+    if not CV2_AVAILABLE or not hasattr(cv2, "data"):
+        return None
+    cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    return cascade if not cascade.empty() else None
+
+
 def detect_faces(img):
     """Return face boxes as (x, y, w, h), or [] if OpenCV/cascade is missing."""
-    if not CV2_AVAILABLE or not hasattr(cv2, "data"):
+    cascade = _face_cascade()
+    if cascade is None:
         return []
     try:
-        path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        cascade = cv2.CascadeClassifier(path)
-        if cascade.empty():
-            return []
         gray = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY)
         faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
         return [tuple(int(v) for v in face) for face in faces]
@@ -179,6 +261,12 @@ def enhance_image(img, settings, progress=None, fast_preview=False):
     skin, clarity, vibrance, warmth.
     """
     img = to_rgb(img)
+    auto = bool(settings.get("auto"))
+    quality = None
+    if auto:
+        settings = auto_settings(img, settings)
+        quality = settings["_quality"]
+
     values = {key: clamp(int(settings.get(key, 0)), 0, 100) for key in
               ("sharpen", "denoise", "skin", "clarity", "vibrance")}
     warmth_value = clamp(int(settings.get("warmth", 0)), -50, 50)
@@ -186,11 +274,19 @@ def enhance_image(img, settings, progress=None, fast_preview=False):
     target = TARGET_2K if mode == "2k" else TARGET_4K
 
     _report(progress, 5, "Preparing image")
+    if auto:
+        img = auto_levels(img, 0.65)
+        _report(progress, 12, "Auto clear & adjust")
+        _report(progress, 17,
+                f"Detected {quality['faces']} face(s) — adaptive retouch" if quality["faces"]
+                else "Adaptive adjustments ready")
     img = denoise(img, values["denoise"])
     _report(progress, 20, "Reducing noise")
 
     if values["skin"]:
-        img = smooth_skin(img, values["skin"], face_only=settings.get("preset") == "portrait")
+        face_only = (settings.get("preset") in ("portrait", "auto_retouch")
+                     or bool(settings.get("_face_only")))
+        img = smooth_skin(img, values["skin"], face_only=face_only)
     _report(progress, 38, "Retouching skin" if values["skin"] else "Keeping natural texture")
 
     img = upscale(img, min(target, 4096), fast=fast_preview)

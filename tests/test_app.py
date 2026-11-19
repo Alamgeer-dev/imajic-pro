@@ -5,6 +5,7 @@ import re
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 from PIL import Image
 
 import enhancement
@@ -132,6 +133,7 @@ class EnhanceStudioTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
         self.assertIn("Real-time 2K &amp; 4K enhancement", html)
+        self.assertIn("Auto Retouch (Remini-style)", html)
         self.assertIn("Portrait Retouch", html)
         self.assertIn("WebApplication", html)
         self.assertIn("liveCanvas", html)
@@ -169,8 +171,9 @@ class EnhanceStudioTest(unittest.TestCase):
             }, content_type="multipart/form-data")
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
-        self.assertEqual(data["preset"], "auto")
+        self.assertEqual(data["preset"], "auto_retouch")
         self.assertEqual(data["mode"], "4k")
+        self.assertTrue(data["auto"])
         self.assertEqual((data["width"], data["height"]), (150, 200))
 
     def test_api_rejects_missing_or_bad_image(self):
@@ -183,6 +186,63 @@ class EnhanceStudioTest(unittest.TestCase):
         }, content_type="multipart/form-data")
         self.assertEqual(bad.status_code, 400)
         self.assertFalse(bad.get_json()["ok"])
+
+
+class AutoEnhancementTest(unittest.TestCase):
+    def setUp(self):
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+
+    def test_auto_levels_improves_flat_contrast(self):
+        array = np.zeros((48, 48, 3), dtype=np.uint8)
+        for x in range(48):
+            array[:, x, :] = 100 + int(x * 40 / 47)
+        img = Image.fromarray(array, "RGB")
+        output = enhancement.auto_levels(img, 0.8)
+        self.assertGreater(np.asarray(output).std(), np.asarray(img).std())
+
+    def test_auto_settings_are_bounded_and_report_quality(self):
+        img = Image.new("RGB", (48, 48), (120, 130, 140))
+        settings = enhancement.auto_settings(img, {"preset": "auto", "auto": True})
+        self.assertIn("contrast", settings["_quality"])
+        for key in ("denoise", "clarity", "sharpen", "vibrance"):
+            self.assertGreaterEqual(settings[key], 0)
+            self.assertLessEqual(settings[key], 100)
+
+    def test_auto_retouch_is_one_click_and_reports_adaptive_stages(self):
+        image, filename = image_file(size=(40, 30))
+        with patch.object(enhancement, "TARGET_2K", 256):
+            response = self.client.post("/api/enhance", data={
+                "image": (image, filename), "mode": "2k", "preset": "auto_retouch",
+            }, content_type="multipart/form-data")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["auto"])
+        self.assertEqual(data["preset"], "auto_retouch")
+        messages = [stage["message"] for stage in data["stages"]]
+        self.assertTrue(any("Auto clear & adjust" in message for message in messages))
+        self.assertTrue(any("adaptive" in message.lower() for message in messages))
+
+    def test_classic_2k_button_uses_auto_pipeline(self):
+        image, filename = image_file()
+        with patch.object(enhancement, "auto_levels", wraps=enhancement.auto_levels) as auto:
+            with patch.object(enhancement, "TARGET_2K", 256):
+                response = self.client.post("/", data={
+                    "image": (image, filename), "feature": "enhance_2k",
+                }, content_type="multipart/form-data")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(auto.called)
+        self.assertIn("256 × 256 px", response.get_data(as_text=True))
+
+    def test_classic_4k_button_uses_auto_pipeline(self):
+        image, filename = image_file()
+        with patch.object(enhancement, "auto_levels", wraps=enhancement.auto_levels) as auto:
+            with patch.object(enhancement, "TARGET_4K", 200):
+                response = self.client.post("/", data={
+                    "image": (image, filename), "feature": "enhance_4k",
+                }, content_type="multipart/form-data")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(auto.called)
 
 
 if __name__ == "__main__":

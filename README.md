@@ -48,16 +48,19 @@ $env:FLASK_DEBUG = "1"   # local only
 python -m unittest discover -s tests -v
 ```
 
-All 14 smoke tests should pass.
+All 20 smoke tests should pass.
 
 ## Step 2b — Real-Time Enhancement Studio
 
 Open <http://localhost:5000/enhance>.
 
+- **One-click Auto Retouch** is the default preset: it auto-clears the image, measures noise/contrast/saturation to pick the slider values, detects faces for retouch, and sends only your manual overrides to the server.
+- **Auto clear & adjust:** a percentile contrast stretch plus grey-world colour balance runs before any other step.
 - **Live preview:** Canvas filters update instantly (via `requestAnimationFrame`) as you drag Sharpen, Denoise, Skin, Clarity, Vibrance and Warmth.
-- **Staged server pipeline:** denoise → skin retouch (face-aware when OpenCV is installed) → Lanczos upscale → clarity → colour → sharpen, with progress feedback.
+- **Staged server pipeline:** auto clear/adjust → adaptive denoise → skin retouch (face-aware when OpenCV is installed) → Lanczos upscale → clarity → colour → sharpen, with progress feedback.
+- **Classic 2K/4K buttons now use the same auto pipeline** — choosing "Enhance to 2K" or "Enhance to 4K" in the main editor auto-clears, auto-adjusts and retouches too.
 - **Before/after slider** for the final result, plus full-resolution `/result/<token>` view and `/download/<token>` attachment.
-- **Presets:** Auto Enhance, Portrait Retouch (Remini-style), Old Photo Restore, Clarity Boost.
+- **Presets:** Auto Retouch (default, one click), Auto Clear & Adjust, Portrait Retouch, Old Photo Restore, Clarity Boost.
 
 Measured locally on an 800×600 source (worst-case synthetic noise):
 

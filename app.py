@@ -145,50 +145,13 @@ def store_result(img):
 # ==================== Enhancement and effect functions ====================
 
 def enhance_to_2k(img):
-    img = to_rgb(img)
-    width, height = img.size
-    target = 2048
-    if max(width, height) < target:
-        if width > height:
-            new_height = max(1, int(height * (target / width)))
-            new_size = (target, new_height)
-        else:
-            new_width = max(1, int(width * (target / height)))
-            new_size = (new_width, target)
-        img = img.resize(new_size, Image.Resampling.LANCZOS)
-
-    img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-    img = img.filter(ImageFilter.MedianFilter(size=3))
-    img = ImageEnhance.Sharpness(img).enhance(1.5)
-    img = ImageEnhance.Color(img).enhance(1.15)
-    return ImageEnhance.Contrast(img).enhance(1.1)
+    """Auto clear, auto adjust and retouch while upscaling to 2K."""
+    return enhance_image(img, {"mode": "2k", "preset": "auto", "auto": True})
 
 
 def enhance_to_4k(img):
-    img = to_rgb(img)
-    width, height = img.size
-    target = 3840
-    if max(width, height) < target:
-        scale = min(target / width, target / height)
-        mid = (max(1, int(width * scale ** 0.5)), max(1, int(height * scale ** 0.5)))
-        final = (max(1, int(width * scale)), max(1, int(height * scale)))
-        img = img.resize(mid, Image.Resampling.LANCZOS).resize(final, Image.Resampling.LANCZOS)
-
-    if CV2_AVAILABLE:
-        try:
-            array = np.array(img)
-            array = cv2.bilateralFilter(array, 9, 75, 75)
-            lab = cv2.cvtColor(array, cv2.COLOR_RGB2LAB)
-            l_ch, a_ch, b_ch = cv2.split(lab)
-            l_ch = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(l_ch)
-            img = Image.fromarray(cv2.cvtColor(cv2.merge((l_ch, a_ch, b_ch)), cv2.COLOR_LAB2RGB))
-        except Exception as exc:
-            logger.warning("OpenCV enhancement skipped: %s", exc)
-
-    img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
-    img = ImageEnhance.Sharpness(img).enhance(1.3)
-    img = ImageEnhance.Color(img).enhance(1.1)
-    return ImageEnhance.Contrast(img).enhance(1.05)
+    """Auto clear, auto adjust and retouch while upscaling to 4K."""
+    return enhance_image(img, {"mode": "4k", "preset": "auto", "auto": True})
 
 
 def apply_cinematic_dark(img, strength=1.0):
@@ -417,9 +380,9 @@ def index():
 
 @app.route("/enhance")
 def enhance_studio():
-    selected_preset = request.args.get("preset", "auto")
+    selected_preset = request.args.get("preset", "auto_retouch")
     if selected_preset not in PRESETS:
-        selected_preset = "auto"
+        selected_preset = "auto_retouch"
     return render_template("enhance.html",
                            presets=PRESETS,
                            selected_preset=selected_preset,
@@ -438,15 +401,19 @@ def api_enhance():
     if not allowed_file(file.filename):
         return jsonify(ok=False, error="Unsupported image type."), 400
 
-    preset = request.form.get("preset", "auto")
+    preset = request.form.get("preset", "auto_retouch")
     if preset not in PRESETS:
-        preset = "auto"
+        preset = "auto_retouch"
     settings = dict(PRESETS[preset]["settings"])
+    explicit = []
     for key in ("sharpen", "denoise", "skin", "clarity", "vibrance", "warmth"):
         if key in request.form:
             settings[key] = request.form[key]
+            explicit.append(key)
     settings["preset"] = preset
     settings["mode"] = "4k" if request.form.get("mode") == "4k" else "2k"
+    settings["auto"] = bool(PRESETS[preset].get("auto"))
+    settings["_explicit"] = explicit
 
     stages = []
 
@@ -479,7 +446,12 @@ def api_enhance():
         preset=preset,
         preset_label=PRESETS[preset]["label"],
         mode=settings["mode"],
-        face_retouch=bool(ENHANCEMENT_CV2 and preset == "portrait"),
+        auto=bool(settings["auto"]),
+        face_retouch=(
+            preset == "portrait" or
+            any("face(s)" in s["message"] and not s["message"].startswith("Detected 0")
+                for s in stages)
+        ),
         stages=stages,
     )
 

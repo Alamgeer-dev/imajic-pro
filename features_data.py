@@ -9,13 +9,15 @@ FEATURES = [
         "slug": "enhance_2k",
         "name": "Enhance to 2K",
         "category": "Enhance",
-        "short": "Upscale smaller photos to 2048px with sharpening and colour cleanup.",
+        "short": "Upscale to 2048px with auto clear, auto colour adjust and face retouch.",
         "description": (
             "The 2K enhancement tool enlarges small or low-resolution photos to a "
             "maximum of 2048 pixels on the longest side while keeping the original "
-            "aspect ratio. It uses high-quality Lanczos resampling, then applies an "
-            "unsharp mask, gentle median noise reduction, sharper details, a small "
-            "colour boost and a light contrast lift. It is the best choice for old "
+            "aspect ratio. It now runs the same auto pipeline as the Enhance Studio: "
+            "a percentile stretch clears flat shadows and balances colour, the image's "
+            "noise, contrast and saturation levels choose the denoise, clarity and "
+            "sharpen amounts, and detected faces get gentle edge-preserving skin "
+            "retouch before a two-step Lanczos upscale. It is the best choice for old "
             "phone photos, profile pictures and images that need to look crisp on "
             "social media without becoming huge files."
         ),
@@ -32,15 +34,16 @@ FEATURES = [
         "slug": "enhance_4k",
         "name": "Enhance to 4K",
         "category": "Enhance",
-        "short": "Two-step upscaling to 3840px with optional OpenCV detail filters.",
+        "short": "Two-step 3840px upscale with auto clear, auto adjust and retouch.",
         "description": (
             "The 4K enhancement tool enlarges images up to 3840 pixels on the longest "
-            "side. It upscales in two passes so edges stay smoother than a single "
-            "large jump. When OpenCV is available it also applies bilateral filtering "
-            "to reduce noise while keeping edges, and CLAHE to lift local contrast in "
-            "shadows. A final sharpening and colour pass keeps the result natural. "
-            "Very large files are resized for web preview, with the full-size result "
-            "available from the download link."
+            "side using the same smart auto pipeline as 2K. It auto-clears flat or "
+            "hazy photos, balances colour, measures noise and contrast to pick the "
+            "right denoise and clarity strength, and retouches detected faces before "
+            "upscaling in two passes so edges stay smoother than a single large jump. "
+            "A final adaptive sharpen keeps the result natural. Very large files are "
+            "resized for web preview, with the full-size result available from the "
+            "download link."
         ),
         "uses": ["Wallpapers", "Large prints", "Product photos", "Restoration projects"],
         "how": [
@@ -250,7 +253,7 @@ FEATURES = [
         "slug": "retouch",
         "name": "AI-Style Retouch",
         "category": "Retouch",
-        "short": "Remini-style skin smoothing, blemish reduction and natural detail recovery.",
+        "short": "One-click Auto Retouch: auto clear, auto adjust and Remini-style skin smoothing.",
         "description": (
             "AI-Style Retouch is a face-aware enhancement preset. It applies edge-preserving "
             "skin smoothing, gentle noise reduction, local contrast and a subtle warm tone. "

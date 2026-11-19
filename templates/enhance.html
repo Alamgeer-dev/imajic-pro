@@ -44,7 +44,7 @@
                         <option value="{{ key }}" {% if key == selected_preset %}selected{% endif %}>{{ item.label }}</option>
                         {% endfor %}
                     </select>
-                    <div class="form-text" id="presetDescription">{{ presets['auto'].description }}</div>
+                    <div class="form-text" id="presetDescription">{{ presets[selected_preset].description }}</div>
                 </div>
 
                 <div class="enhance-sliders">
@@ -74,7 +74,10 @@
                     </div>
                 </div>
 
-                <button type="button" class="btn btn-primary w-100" id="enhanceBtn">Enhance now</button>
+                <button type="button" class="btn btn-primary w-100" id="enhanceBtn">Auto Enhance now</button>
+                <div class="form-text mt-1">
+                    One click runs auto clear, auto adjust, retouch and upscale. Move any slider to override the automatic value.
+                </div>
 
                 <div class="mt-3" id="progressArea" hidden>
                     <div class="d-flex justify-content-between small mb-1">
@@ -304,7 +307,14 @@
         form.append('image', fileInput.files[0]);
         form.append('mode', document.getElementById('mode').value);
         form.append('preset', presetSelect.value);
-        Object.entries(sliderValues()).forEach(([key, value]) => form.append(key, value));
+        // Send only the sliders the user actually changed, so the server can
+        // auto-fill the rest from the image (Auto Retouch / Auto Clear & Adjust).
+        const defaults = presets[presetSelect.value].settings;
+        Object.entries(sliderValues()).forEach(([key, value]) => {
+            if (defaults[key] === undefined || Number(defaults[key]) !== value) {
+                form.append(key, value);
+            }
+        });
 
         try {
             const response = await fetch('/api/enhance', { method: 'POST', body: form });
@@ -322,7 +332,8 @@
             resultInfo.innerHTML =
                 '<strong>' + data.preset_label + '</strong> · ' + data.mode.toUpperCase() +
                 ' result ' + data.width + ' × ' + data.height + ' px · completed in ' +
-                data.elapsed_ms + ' ms' + (data.face_retouch ? ' · face-aware retouch active' : '') +
+                data.elapsed_ms + ' ms' + (data.auto ? ' · auto clear & adjust' : '') +
+                (data.face_retouch ? ' · face-aware retouch active' : '') +
                 ' · <a href="' + data.download_url + '" download>Download enhanced image</a>';
         } catch (error) {
             if (progressTimer) clearInterval(progressTimer);
