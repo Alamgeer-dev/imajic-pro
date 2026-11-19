@@ -38,7 +38,8 @@ logger = logging.getLogger("imajic")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__,
             template_folder=os.path.join(BASE_DIR, "templates"),
-            static_folder=os.path.join(BASE_DIR, "static"))
+            static_folder=os.path.join(BASE_DIR, "public", "static"),
+            static_url_path="/static")
 
 # ---------- Configuration (all secrets/limits come from the environment) ----------
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)

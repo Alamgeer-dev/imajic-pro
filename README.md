@@ -13,8 +13,9 @@ Server-rendered Flask image editor with 14 image tools, an editable/non-editable
 | `templates/index.html` | Editor, preview, FAQ, feature grid |
 | `templates/features.html` | Full feature list page |
 | `templates/feature.html` | Indexable detail page for every feature |
+| `public/static/` | CSS, logo and background assets served by Vercel and Flask |
 | `tests/test_app.py` | Smoke tests for pages, SEO endpoints and processing |
-| `vercel.json` | Vercel build and routes |
+| `vercel.json` | Vercel project configuration |
 | `.vercelignore` | Keeps venv/uploads/tests out of the deployment |
 
 ---
@@ -45,7 +46,7 @@ $env:FLASK_DEBUG = "1"   # local only
 python -m unittest discover -s tests -v
 ```
 
-All 9 smoke tests should pass.
+All smoke tests should pass.
 
 ## Step 3 — Commit cleanly to GitHub
 
@@ -64,7 +65,7 @@ git push
 ## Step 4 — Deploy to Vercel
 
 1. Go to <https://vercel.com/new> → **Import** your GitHub repository.
-2. Framework preset: **Other**. Build command: leave empty. Output directory: leave empty.
+2. Framework preset: **Other**. Build command: leave empty. Output directory: leave empty. Vercel detects the Flask app in `app.py` and serves assets from `public/`.
 3. Add environment variables **before** deploying:
 
    | Variable | Example | Why |

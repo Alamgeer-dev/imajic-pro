@@ -55,6 +55,17 @@ class PublicPagesTest(unittest.TestCase):
     def test_health(self):
         self.assertEqual(self.client.get("/healthz").get_json()["status"], "ok")
 
+    def test_static_assets_are_served(self):
+        for path, content_type in (
+            ("/static/style1.css", "text/css"),
+            ("/static/logo.png", "image/png"),
+            ("/static/background.png", "image/png"),
+        ):
+            with self.subTest(path=path):
+                with self.client.get(path) as response:
+                    self.assertEqual(response.status_code, 200)
+                    self.assertTrue(response.content_type.startswith(content_type))
+
 
 class ProcessingTest(unittest.TestCase):
     def setUp(self):
