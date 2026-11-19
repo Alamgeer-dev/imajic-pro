@@ -65,7 +65,7 @@ git push
 ## Step 4 — Deploy to Vercel
 
 1. Go to <https://vercel.com/new> → **Import** your GitHub repository.
-2. Framework preset: **Other**. Build command: leave empty. Output directory: leave empty. Vercel detects the Flask app in `app.py` and serves assets from `public/`.
+2. Let Vercel auto-detect the Flask app in `app.py`. Leave the build command and output directory empty; assets in `public/` are served by Vercel's CDN.
 3. Add environment variables **before** deploying:
 
    | Variable | Example | Why |
