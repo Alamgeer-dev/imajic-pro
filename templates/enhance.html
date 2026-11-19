@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Real-Time 2K & 4K Enhancement Studio — ImageMagic Pro{% endblock %}
+{% block description %}Enhance photos instantly to 2K or 4K with live preview, AI-style portrait retouch, denoise and clarity. See before/after in real time.{% endblock %}
+{% block canonical %}{{ site_url }}/enhance{% endblock %}
+{% block og_title %}Real-Time 2K & 4K Enhancement Studio{% endblock %}
+{% block og_description %}Live preview upscaling, portrait retouch and old photo restore powered by Flask, Pillow and NumPy.{% endblock %}
+{% block twitter_title %}Real-Time 2K & 4K Enhancement Studio{% endblock %}
+{% block twitter_description %}Live preview upscaling and Remini-style retouch.{% endblock %}
+
+{% block content %}
+<section class="hero-card hero-card-small">
+    <h2 class="hero-title">Real-time 2K &amp; 4K enhancement</h2>
+    <p class="hero-copy">
+        Drag the sliders to see a live preview, then let the server refine your photo.
+        Choose a preset for Remini-style portrait retouch, old photo restore or a pure clarity boost.
+    </p>
+    <a class="btn btn-light" href="{{ url_for('features') }}">Browse all 18 tools</a>
+</section>
+
+<div class="row">
+    <!-- Controls -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h3 class="h5 mb-0">Enhance settings</h3></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label" for="enhanceImage">Select image</label>
+                    <input type="file" class="form-control" id="enhanceImage" accept="image/*" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="mode">Output size</label>
+                    <select class="form-select" id="mode">
+                        <option value="2k">2K — {{ target_2k }}px longest side (fast)</option>
+                        <option value="4k">4K — {{ target_4k }}px longest side</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="preset">Enhancement preset</label>
+                    <select class="form-select" id="preset">
+                        {% for key, item in presets.items() %}
+                        <option value="{{ key }}" {% if key == selected_preset %}selected{% endif %}>{{ item.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text" id="presetDescription">{{ presets['auto'].description }}</div>
+                </div>
+
+                <div class="enhance-sliders">
+                    <div class="mb-2">
+                        <label class="form-label" for="sharpen">Sharpen <span class="slider-value" id="sharpenValue">45</span></label>
+                        <input type="range" class="form-range" id="sharpen" min="0" max="100" value="45">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="denoise">Denoise <span class="slider-value" id="denoiseValue">25</span></label>
+                        <input type="range" class="form-range" id="denoise" min="0" max="100" value="25">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="skin">Skin retouch <span class="slider-value" id="skinValue">15</span></label>
+                        <input type="range" class="form-range" id="skin" min="0" max="100" value="15">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="clarity">Clarity <span class="slider-value" id="clarityValue">35</span></label>
+                        <input type="range" class="form-range" id="clarity" min="0" max="100" value="35">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" for="vibrance">Vibrance <span class="slider-value" id="vibranceValue">30</span></label>
+                        <input type="range" class="form-range" id="vibrance" min="0" max="100" value="30">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="warmth">Warmth <span class="slider-value" id="warmthValue">5</span></label>
+                        <input type="range" class="form-range" id="warmth" min="-50" max="50" value="5">
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary w-100" id="enhanceBtn">Enhance now</button>
+
+                <div class="mt-3" id="progressArea" hidden>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span id="progressText">Preparing…</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             id="progressBar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="alert alert-danger mt-3" id="enhanceError" hidden></div>
+
+                {% if not face_retouch %}
+                <p class="small text-muted mt-3 mb-0">
+                    Tip: install OpenCV locally (<code>pip install opencv-python-headless</code>)
+                    to enable face-aware retouch. The browser and Vercel fallback still works without it.
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Live preview / result -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="h5 mb-0">Live preview &amp; before/after</h3>
+                <span class="badge bg-success" id="liveBadge">Live preview on</span>
+            </div>
+            <div class="card-body">
+                <div class="compare-stage" id="compareStage">
+                    <img id="beforeImg" alt="Before enhancement" class="compare-img">
+                    <div class="compare-after" id="afterLayer">
+                        <img id="afterImg" alt="After enhancement" class="compare-img">
+                    </div>
+                    <canvas id="liveCanvas" class="compare-img" hidden></canvas>
+                    <div class="compare-empty" id="compareEmpty">
+                        Choose an image to start the live preview.
+                    </div>
+                </div>
+
+                <div class="mt-3" id="compareControls" hidden>
+                    <label class="form-label" for="compareRange">Reveal enhanced result</label>
+                    <input type="range" class="form-range" id="compareRange" min="0" max="100" value="100">
+                    <div class="d-flex justify-content-between small text-muted">
+                        <span>Before</span><span>After</span>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 small mb-0" id="resultInfo" hidden></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="mt-5">
+    <h3 class="section-title">Enhancement presets explained</h3>
+    <div class="row">
+        {% for key, item in presets.items() %}
+            <div class="col-md-6 col-lg-3">
+                <article class="card feature-card h-100">
+                    <div class="card-body">
+                        <h4 class="h6">{{ item.label }}</h4>
+                        <p class="small">{{ item.description }}</p>
+                    </div>
+                </article>
+            </div>
+        {% endfor %}
+    </div>
+    <p class="small text-muted mt-3">
+        This studio uses fast, classical image processing (edge-preserving smoothing, denoise,
+        local contrast and Lanczos upscaling). It restores perceived sharpness and texture but
+        cannot generate new facial detail like a large diffusion or GAN super-resolution model.
+    </p>
+</section>
+
+<script type="application/json" id="presetData">{{ presets|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const presets = JSON.parse(document.getElementById('presetData').textContent);
+    const fileInput = document.getElementById('enhanceImage');
+    const beforeImg = document.getElementById('beforeImg');
+    const afterImg = document.getElementById('afterImg');
+    const afterLayer = document.getElementById('afterLayer');
+    const canvas = document.getElementById('liveCanvas');
+    const empty = document.getElementById('compareEmpty');
+    const compareControls = document.getElementById('compareControls');
+    const compareRange = document.getElementById('compareRange');
+    const resultInfo = document.getElementById('resultInfo');
+    const progressArea = document.getElementById('progressArea');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressPercent = document.getElementById('progressPercent');
+    const enhanceError = document.getElementById('enhanceError');
+    const presetSelect = document.getElementById('preset');
+    const sliders = ['sharpen', 'denoise', 'skin', 'clarity', 'vibrance', 'warmth'].map(id => document.getElementById(id));
+    let currentImage = null;
+    let rafPending = false;
+    let progressTimer = null;
+    let fakeProgress = 0;
+
+    function sliderValues() {
+        const out = {};
+        sliders.forEach(s => out[s.id] = Number(s.value));
+        return out;
+    }
+
+    function updateLabels() {
+        sliders.forEach(s => {
+            document.getElementById(s.id + 'Value').textContent = s.value;
+        });
+    }
+
+    function livePreview() {
+        if (!currentImage || !canvas) return;
+        rafPending = false;
+        const v = sliderValues();
+        const maxW = 900;
+        const scale = Math.min(1, maxW / currentImage.width);
+        const w = Math.max(1, Math.round(currentImage.width * scale));
+        const h = Math.max(1, Math.round(currentImage.height * scale));
+        canvas.width = w;
+        canvas.height = h;
+        canvas.hidden = false;
+        afterLayer.style.display = 'none';
+        const ctx = canvas.getContext('2d');
+        const contrast = 1 + v.clarity / 100 * 0.28;
+        const saturate = 1 + v.vibrance / 100 * 0.45;
+        const blur = v.skin / 100 * 0.7;
+        ctx.filter = `contrast(${contrast}) saturate(${saturate}) blur(${blur}px)`;
+        ctx.drawImage(currentImage, 0, 0, w, h);
+        ctx.filter = 'none';
+    }
+
+    function schedulePreview() {
+        if (!rafPending) {
+            rafPending = true;
+            requestAnimationFrame(livePreview);
+        }
+    }
+
+    function applyPreset(key) {
+        const values = presets[key].settings;
+        sliders.forEach(s => { if (values[s.id] !== undefined) s.value = values[s.id]; });
+        document.getElementById('presetDescription').textContent = presets[key].description;
+        updateLabels();
+        schedulePreview();
+    }
+
+    function resetResult() {
+        resultInfo.hidden = true;
+        enhanceError.hidden = true;
+        afterImg.removeAttribute('src');
+        compareControls.hidden = true;
+        canvas.hidden = false;
+        afterLayer.style.display = 'none';
+        compareRange.value = 100;
+        updateCompare();
+    }
+
+    function updateCompare() {
+        const pos = Number(compareRange.value);
+        afterLayer.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+        canvas.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+        afterImg.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
+    }
+
+    function setProgress(percent, text) {
+        progressBar.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+        if (text) progressText.textContent = text;
+    }
+
+    function startFakeProgress() {
+        fakeProgress = 0;
+        setProgress(0, 'Uploading image…');
+        progressTimer = setInterval(() => {
+            fakeProgress = Math.min(88, fakeProgress + 6 + Math.random() * 7);
+            setProgress(Math.round(fakeProgress), 'Processing on server…');
+        }, 220);
+    }
+
+    function stopFakeProgress() {
+        if (progressTimer) clearInterval(progressTimer);
+        progressTimer = null;
+        setProgress(100, 'Done');
+        setTimeout(() => { progressArea.hidden = true; }, 700);
+    }
+
+    fileInput.addEventListener('change', function () {
+        const file = this.files[0];
+        if (!file) return;
+        if (currentImage) URL.revokeObjectURL(currentImage.src);
+        currentImage = new Image();
+        currentImage.onload = function () {
+            beforeImg.src = currentImage.src;
+            empty.hidden = true;
+            resetResult();
+            schedulePreview();
+        };
+        currentImage.src = URL.createObjectURL(file);
+    });
+
+    presetSelect.addEventListener('change', function () { applyPreset(this.value); });
+    sliders.forEach(s => s.addEventListener('input', function () {
+        updateLabels();
+        schedulePreview();
+    }));
+    compareRange.addEventListener('input', updateCompare);
+
+    document.getElementById('enhanceBtn').addEventListener('click', async function () {
+        if (!fileInput.files[0]) {
+            enhanceError.textContent = 'Please choose an image first.';
+            enhanceError.hidden = false;
+            return;
+        }
+        enhanceError.hidden = true;
+        progressArea.hidden = false;
+        startFakeProgress();
+
+        const form = new FormData();
+        form.append('image', fileInput.files[0]);
+        form.append('mode', document.getElementById('mode').value);
+        form.append('preset', presetSelect.value);
+        Object.entries(sliderValues()).forEach(([key, value]) => form.append(key, value));
+
+        try {
+            const response = await fetch('/api/enhance', { method: 'POST', body: form });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Enhancement failed.');
+
+            stopFakeProgress();
+            canvas.hidden = true;
+            afterLayer.style.display = 'block';
+            afterImg.src = data.result_url;
+            compareRange.value = 100;
+            updateCompare();
+            compareControls.hidden = false;
+            resultInfo.hidden = false;
+            resultInfo.innerHTML =
+                '<strong>' + data.preset_label + '</strong> · ' + data.mode.toUpperCase() +
+                ' result ' + data.width + ' × ' + data.height + ' px · completed in ' +
+                data.elapsed_ms + ' ms' + (data.face_retouch ? ' · face-aware retouch active' : '') +
+                ' · <a href="' + data.download_url + '" download>Download enhanced image</a>';
+        } catch (error) {
+            if (progressTimer) clearInterval(progressTimer);
+            progressArea.hidden = true;
+            enhanceError.textContent = error.message;
+            enhanceError.hidden = false;
+        }
+    });
+
+    applyPreset(presetSelect.value);
+})();
+</script>
+{% endblock %}

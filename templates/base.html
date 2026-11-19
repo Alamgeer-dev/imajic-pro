@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ImageMagic Pro — Free Online Image Editor{% endblock %}</title>
-    <meta name="description" content="{% block description %}Upload an image, choose from 14 editing features, and preview the result instantly. Enhance to 2K/4K, portrait mode, cinematic looks and AI-image checks.{% endblock %}">
+    <meta name="description" content="{% block description %}Upload an image, choose from 16 editing features and 2 analysis checks, and preview the result instantly. Enhance to 2K/4K in real time, retouch portraits and check if an image is AI-generated.{% endblock %}">
     <meta name="robots" content="{% block robots %}index, follow, max-image-preview:large{% endblock %}">
     <meta name="theme-color" content="#667eea">
     <link rel="canonical" href="{% block canonical %}{{ site_url }}/{% endblock %}">
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="ImageMagic Pro">
     <meta property="og:title" content="{% block og_title %}ImageMagic Pro — Free Online Image Editor{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}Enhance, edit and analyse images online with 14 server-powered tools.{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Enhance, edit and analyse images online with 18 server-powered tools.{% endblock %}">
     <meta property="og:url" content="{{ site_url }}">
     <meta property="og:image" content="{{ site_url }}{{ url_for('static', filename='logo.png') }}">
     <meta name="twitter:card" content="summary_large_image">
@@ -30,7 +30,7 @@
       "@type": "WebApplication",
       "name": "ImageMagic Pro",
       "url": "{{ site_url }}/",
-      "description": "A free browser-based image editor with 14 processing features, editable/format checks and AI-image indicators.",
+      "description": "A free browser-based image editor with 16 processing features, Remini-style photo retouch, editable/format checks and AI-image indicators.",
       "applicationCategory": "MultimediaApplication",
       "operatingSystem": "Any (web browser)",
       "browserRequirements": "Requires JavaScript and HTML5",
@@ -71,7 +71,8 @@
     <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav mx-auto text-center">
             <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('features') }}">All 14 Features</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('enhance_studio') }}">2K/4K Enhance Studio</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('features') }}">All 18 Tools</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#analysis">Image Analysis</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#how-it-works">How it works</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}#faq">FAQ</a></li>
@@ -104,6 +105,7 @@
             <div class="col-md-4">
                 <h2 class="h5">Popular tools</h2>
                 <ul class="footer-links">
+                    <li><a href="{{ url_for('enhance_studio') }}">Real-Time 2K/4K Enhance Studio</a></li>
                     <li><a href="{{ url_for('feature_detail', slug='enhance_4k') }}">4K Enhance</a></li>
                     <li><a href="{{ url_for('feature_detail', slug='portrait') }}">Portrait Mode</a></li>
                     <li><a href="{{ url_for('feature_detail', slug='cinematic_dark') }}">Cinematic Dark</a></li>

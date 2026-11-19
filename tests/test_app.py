@@ -3,9 +3,11 @@
 import io
 import re
 import unittest
+from unittest.mock import patch
 
 from PIL import Image
 
+import enhancement
 from app import app
 
 
@@ -49,7 +51,9 @@ class PublicPagesTest(unittest.TestCase):
         self.assertEqual(sitemap.status_code, 200)
         xml = sitemap.get_data(as_text=True)
         self.assertIn("<urlset", xml)
-        for slug in ("enhance_2k", "enhance_4k", "portrait", "cinematic_dark", "detect_ai"):
+        self.assertIn("/enhance", xml)
+        for slug in ("enhance_2k", "enhance_4k", "portrait", "cinematic_dark",
+                     "detect_ai", "retouch", "restore"):
             self.assertIn(f"/features/{slug}", xml)
 
     def test_health(self):
@@ -110,6 +114,75 @@ class ProcessingTest(unittest.TestCase):
     def test_invalid_feature_is_rejected(self):
         response = self.post("unknown_feature")
         self.assertEqual(response.status_code, 302)
+
+
+class EnhanceStudioTest(unittest.TestCase):
+    def setUp(self):
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+
+    def post(self, **extra):
+        image, filename = image_file(size=(40, 30))
+        data = {"image": (image, filename)}
+        data.update(extra)
+        return self.client.post("/api/enhance", data=data, content_type="multipart/form-data")
+
+    def test_studio_page_is_server_rendered(self):
+        response = self.client.get("/enhance")
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("Real-time 2K &amp; 4K enhancement", html)
+        self.assertIn("Portrait Retouch", html)
+        self.assertIn("WebApplication", html)
+        self.assertIn("liveCanvas", html)
+        self.assertIn("Old Photo Restore", html)
+
+    def test_retouch_feature_links_open_matching_studio_preset(self):
+        for slug, preset in (("retouch", "portrait"), ("restore", "restore")):
+            with self.subTest(slug=slug):
+                detail = self.client.get(f"/features/{slug}").get_data(as_text=True)
+                self.assertIn(f'href="/enhance?preset={preset}"', detail)
+                studio = self.client.get(f"/enhance?preset={preset}").get_data(as_text=True)
+                self.assertIn(f'<option value="{preset}" selected>', studio)
+
+    def test_api_enhance_2k_portrait(self):
+        with patch.object(enhancement, "TARGET_2K", 256):
+            response = self.post(mode="2k", preset="portrait", sharpen="40",
+                                 denoise="20", skin="60", clarity="30",
+                                 vibrance="20", warmth="5")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual((data["width"], data["height"]), (256, 192))
+        self.assertIn("data:image/jpeg;base64,", data["preview"])
+        self.assertEqual(data["preset"], "portrait")
+        self.assertEqual(data["mode"], "2k")
+        self.assertTrue(data["stages"])
+        self.assertIn("Upscaling", " ".join(s["message"] for s in data["stages"]))
+        self.assertIn("attachment", self.client.get(data["download_url"]).headers["Content-Disposition"])
+
+    def test_api_enhance_4k_with_invalid_preset_fallback(self):
+        image, filename = image_file(size=(30, 40))
+        with patch.object(enhancement, "TARGET_4K", 200):
+            response = self.client.post("/api/enhance", data={
+                "image": (image, filename), "mode": "4k", "preset": "not-a-preset",
+            }, content_type="multipart/form-data")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["preset"], "auto")
+        self.assertEqual(data["mode"], "4k")
+        self.assertEqual((data["width"], data["height"]), (150, 200))
+
+    def test_api_rejects_missing_or_bad_image(self):
+        missing = self.client.post("/api/enhance", data={}, content_type="multipart/form-data")
+        self.assertEqual(missing.status_code, 400)
+        self.assertFalse(missing.get_json()["ok"])
+
+        bad = self.client.post("/api/enhance", data={
+            "image": (io.BytesIO(b"not an image"), "bad.png"),
+        }, content_type="multipart/form-data")
+        self.assertEqual(bad.status_code, 400)
+        self.assertFalse(bad.get_json()["ok"])
 
 
 if __name__ == "__main__":

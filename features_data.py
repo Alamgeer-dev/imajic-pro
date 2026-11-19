@@ -246,6 +246,50 @@ FEATURES = [
         "how": ["Upload an image.", "Choose 4K Pro Look.", "Set effect strength, process and download."],
         "params": "Effect strength from 50% to 150%.",
     },
+    {
+        "slug": "retouch",
+        "name": "AI-Style Retouch",
+        "category": "Retouch",
+        "short": "Remini-style skin smoothing, blemish reduction and natural detail recovery.",
+        "description": (
+            "AI-Style Retouch is a face-aware enhancement preset. It applies edge-preserving "
+            "skin smoothing, gentle noise reduction, local contrast and a subtle warm tone. "
+            "When OpenCV is available it detects faces and limits the retouch to those regions "
+            "with a feathered mask, so background detail stays untouched. On hosts without "
+            "OpenCV the same effect is applied globally using a NumPy edge guard. This is "
+            "classical image processing: it cannot invent missing facial detail the way a "
+            "generative super-resolution model can, but it is fast and works in real time."
+        ),
+        "uses": ["Selfies", "Portraits", "Profile photos", "Video call stills"],
+        "how": [
+            "Open the Enhance Studio and upload a portrait.",
+            "Choose 2K or 4K as the output size.",
+            "Select the Portrait Retouch preset and fine-tune the skin slider.",
+            "Watch the live preview, then click Enhance now.",
+        ],
+        "params": "Sharpen, denoise, skin smoothing, clarity, vibrance and warmth sliders.",
+    },
+    {
+        "slug": "restore",
+        "name": "Old Photo Restore",
+        "category": "Retouch",
+        "short": "Clean scanned photos and faded prints with denoise and clarity.",
+        "description": (
+            "Old Photo Restore is tuned for scanned prints and damaged photographs. It starts "
+            "with stronger denoising, adds local contrast to bring back faded detail, then "
+            "applies controlled sharpening and a light colour refresh. Because the cleanup "
+            "happens before upscaling, the 2K and 4K passes work on a cleaner source and avoid "
+            "magnifying grain and dust."
+        ),
+        "uses": ["Scanned photos", "Family albums", "Faded prints", "Archive images"],
+        "how": [
+            "Upload a scanned or noisy photo in the Enhance Studio.",
+            "Pick the Old Photo Restore preset.",
+            "Adjust denoise and clarity for the amount of damage.",
+            "Enhance to 2K or 4K and download the result.",
+        ],
+        "params": "Denoise, clarity, sharpen, vibrance and warmth sliders.",
+    },
 ]
 
 ANALYSIS_FEATURES = [

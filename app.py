@@ -27,6 +27,7 @@ except ImportError:
     CV2_AVAILABLE = False
 
 from analysis import analyze_editability, detect_ai_indicators
+from enhancement import CV2_AVAILABLE as ENHANCEMENT_CV2, PRESETS, enhance_image
 from features_data import (
     ANALYSIS_BY_SLUG, ANALYSIS_FEATURES, ALL_SLUGS, CATEGORIES,
     FEATURE_BY_SLUG, FEATURES,
@@ -414,6 +415,75 @@ def index():
     return render_template("index.html", **context)
 
 
+@app.route("/enhance")
+def enhance_studio():
+    selected_preset = request.args.get("preset", "auto")
+    if selected_preset not in PRESETS:
+        selected_preset = "auto"
+    return render_template("enhance.html",
+                           presets=PRESETS,
+                           selected_preset=selected_preset,
+                           target_2k=2048,
+                           target_4k=3840,
+                           face_retouch=ENHANCEMENT_CV2)
+
+
+@app.route("/api/enhance", methods=["POST"])
+def api_enhance():
+    """Synchronous JSON endpoint: the UI shows live progress while this runs."""
+    if "image" not in request.files or not request.files["image"].filename:
+        return jsonify(ok=False, error="Please choose an image."), 400
+
+    file = request.files["image"]
+    if not allowed_file(file.filename):
+        return jsonify(ok=False, error="Unsupported image type."), 400
+
+    preset = request.form.get("preset", "auto")
+    if preset not in PRESETS:
+        preset = "auto"
+    settings = dict(PRESETS[preset]["settings"])
+    for key in ("sharpen", "denoise", "skin", "clarity", "vibrance", "warmth"):
+        if key in request.form:
+            settings[key] = request.form[key]
+    settings["preset"] = preset
+    settings["mode"] = "4k" if request.form.get("mode") == "4k" else "2k"
+
+    stages = []
+
+    def progress(percent, message):
+        stages.append({"percent": percent, "message": message})
+        logger.info("Enhance %s%%: %s", percent, message)
+
+    started = time.time()
+    try:
+        img = Image.open(BytesIO(file.read()))
+        img.load()
+    except Exception:
+        return jsonify(ok=False, error="That file could not be read as an image."), 400
+
+    try:
+        result = enhance_image(img, settings, progress=progress)
+    except Exception:
+        logger.exception("Enhance Studio processing failed")
+        return jsonify(ok=False, error="Enhancement failed. Try a smaller image."), 500
+
+    token, dimensions = store_result(result)
+    return jsonify(
+        ok=True,
+        preview=pil_to_base64(result, max_dim=900, quality=82),
+        result_url=url_for("result_image", token=token),
+        download_url=url_for("download_image", token=token),
+        width=dimensions[0],
+        height=dimensions[1],
+        elapsed_ms=int((time.time() - started) * 1000),
+        preset=preset,
+        preset_label=PRESETS[preset]["label"],
+        mode=settings["mode"],
+        face_retouch=bool(ENHANCEMENT_CV2 and preset == "portrait"),
+        stages=stages,
+    )
+
+
 @app.route("/features")
 def features():
     return render_template("features.html",
@@ -429,7 +499,9 @@ def feature_detail(slug):
         abort(404)
     related = [item for item in FEATURES
                if item["category"] == feature["category"] and item["slug"] != slug][:3]
-    return render_template("feature.html", feature=feature, related=related)
+    enhance_preset = {"retouch": "portrait", "restore": "restore"}.get(slug)
+    return render_template("feature.html", feature=feature, related=related,
+                           enhance_preset=enhance_preset)
 
 
 @app.route("/result/<token>")
@@ -461,7 +533,7 @@ def robots():
 @app.route("/sitemap.xml")
 def sitemap():
     today = datetime.now(timezone.utc).date().isoformat()
-    paths = ["/", "/features"] + [
+    paths = ["/", "/enhance", "/features"] + [
         f"/features/{slug}" for slug in list(FEATURE_BY_SLUG) + list(ANALYSIS_BY_SLUG)
     ]
     urls = "".join(
@@ -488,6 +560,8 @@ def not_found(_error):
 
 @app.errorhandler(413)
 def too_large(_error):
+    if request.path.startswith("/api/"):
+        return jsonify(ok=False, error="That image is too large. Please use a smaller file."), 413
     flash("That image is too large. Please upload a file under the size limit.")
     return redirect(url_for("index"))
 

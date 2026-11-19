@@ -57,8 +57,12 @@
             </div>
         </div>
 
+        {% if enhance_preset %}
+        <a class="btn btn-primary btn-lg mt-3" href="{{ url_for('enhance_studio', preset=enhance_preset) }}">Use {{ feature.name }} in Enhance Studio</a>
+        {% else %}
         <a class="btn btn-primary btn-lg mt-3" href="{{ url_for('index', feature=feature.slug) }}#editor">Use {{ feature.name }} now</a>
-        <a class="btn btn-outline-secondary btn-lg mt-3" href="{{ url_for('features') }}">See all 14 features</a>
+        {% endif %}
+        <a class="btn btn-outline-secondary btn-lg mt-3" href="{{ url_for('features') }}">See all 18 tools</a>
     </div>
 </article>
 

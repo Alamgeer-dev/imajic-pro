@@ -1,20 +1,22 @@
 # ImageMagic Pro
 
-Server-rendered Flask image editor with 14 image tools, an editable/non-editable check, and a heuristic AI-image check. Designed to be indexable by Google and deployable on Vercel.
+Server-rendered Flask image editor with 16 editing tools, a real-time 2K/4K Enhance Studio with Remini-style retouch, an editable/non-editable check, and a heuristic AI-image check. Designed to be indexable by Google and deployable on Vercel.
 
 ## Project structure
 
 | File | Purpose |
 |---|---|
-| `app.py` | Flask routes, image processing, SEO endpoints (`/robots.txt`, `/sitemap.xml`) |
-| `features_data.py` | The 14 editing features + 2 analysis checks (single source of truth) |
+| `app.py` | Flask routes, image processing, `/api/enhance`, SEO endpoints (`/robots.txt`, `/sitemap.xml`) |
+| `enhancement.py` | 2K/4K upscaling pipeline + retouch presets (denoise, skin, clarity, vibrance) |
+| `features_data.py` | The 16 editing features + 2 analysis checks (single source of truth) |
 | `analysis.py` | Editability report and AI-indicator heuristics |
 | `templates/base.html` | Shared SSR layout, meta tags, JSON-LD, navigation, footer |
-| `templates/index.html` | Editor, preview, FAQ, feature grid |
+| `templates/index.html` | Classic editor, preview, FAQ, feature grid |
+| `templates/enhance.html` | Real-time Enhance Studio with live preview and before/after slider |
 | `templates/features.html` | Full feature list page |
 | `templates/feature.html` | Indexable detail page for every feature |
 | `public/static/` | CSS, logo and background assets served by Vercel and Flask |
-| `tests/test_app.py` | Smoke tests for pages, SEO endpoints and processing |
+| `tests/test_app.py` | Smoke tests for pages, SEO endpoints, processing and the enhance API |
 | `vercel.json` | Vercel project configuration |
 | `.vercelignore` | Keeps venv/uploads/tests out of the deployment |
 
@@ -46,7 +48,27 @@ $env:FLASK_DEBUG = "1"   # local only
 python -m unittest discover -s tests -v
 ```
 
-All smoke tests should pass.
+All 14 smoke tests should pass.
+
+## Step 2b — Real-Time Enhancement Studio
+
+Open <http://localhost:5000/enhance>.
+
+- **Live preview:** Canvas filters update instantly (via `requestAnimationFrame`) as you drag Sharpen, Denoise, Skin, Clarity, Vibrance and Warmth.
+- **Staged server pipeline:** denoise → skin retouch (face-aware when OpenCV is installed) → Lanczos upscale → clarity → colour → sharpen, with progress feedback.
+- **Before/after slider** for the final result, plus full-resolution `/result/<token>` view and `/download/<token>` attachment.
+- **Presets:** Auto Enhance, Portrait Retouch (Remini-style), Old Photo Restore, Clarity Boost.
+
+Measured locally on an 800×600 source (worst-case synthetic noise):
+
+| Mode | Output | Time |
+|---|---|---|
+| 2K | 2048 × 1536 | ~2–3 s |
+| 4K | 3840 × 2880 | ~7 s |
+
+`POST /api/enhance` accepts `image`, `mode` (`2k`/`4k`), `preset` and the six slider values, and returns JSON with a small preview data URI, `result_url`, `download_url`, dimensions, elapsed time and progress stages.
+
+**Honest limitation:** this is fast classical image processing, not a generative AI super-resolution model. It restores perceived sharpness, smooths skin and removes noise, but it cannot invent brand-new facial detail the way Remini's neural models can. A heavy super-resolution model would exceed Vercel's function size limit; to add one, call an external API (Replicate, ModelScope, etc.) from `enhancement.py`.
 
 ## Step 3 — Commit cleanly to GitHub
 
@@ -90,7 +112,7 @@ Set `SITE_URL` to your **custom domain** if you add one later, then redeploy.
    - If using the HTML tag, paste the value into `GOOGLE_SITE_VERIFICATION` and redeploy. Flask will render `<meta name="google-site-verification" ...>` on every page.
 3. Click **Verify**.
 4. Open **Sitemaps** → enter `sitemap.xml` → **Submit**.
-5. Use **URL Inspection** on `/`, `/features`, and a few `/features/<slug>` pages → **Request indexing**.
+5. Use **URL Inspection** on `/`, `/enhance`, `/features`, and a few `/features/<slug>` pages → **Request indexing**.
 
 ## Step 6 — Confirm real SSR (no client-only rendering)
 
@@ -121,6 +143,7 @@ New pages usually appear within a few days; feature pages can take longer. Keep 
 
 - **Result storage is in-memory.** Download tokens live in the server process for 30 minutes. It works on a single Vercel instance but may 404 if the next request lands on a different instance. For production, store results in Vercel Blob / S3 / GCS and put the URL in the token record.
 - **AI Image Check is a heuristic** based on metadata markers and an experimental texture signal. It cannot prove AI authorship — the UI and structured data both say so.
-- **Portrait mode** uses MediaPipe when installed; otherwise an oval mask fallback is used. OpenCV is optional and guarded by `CV2_AVAILABLE`.
+- **Portrait mode** uses MediaPipe when installed; otherwise an oval mask fallback is used.
+- **Face-aware retouch** in the Enhance Studio uses OpenCV Haar cascades when OpenCV is installed (the UI badge reports `face-aware retouch active`); without it, a NumPy edge-guard fallback smooths the whole image. OpenCV is optional and guarded by `CV2_AVAILABLE`.
 - **Animated images** are processed from the first frame only.
 - Uploads are capped at 12 MB, images at 40 megapixels, output at 4096px, and all numeric form values are clamped server-side.

@@ -247,8 +247,70 @@ body {
 .footer-links { list-style: none; padding: 0; margin: 0; }
 .footer-links li { margin-bottom: 6px; }
 
+/* ====================== ENHANCE STUDIO ====================== */
+.enhance-sliders {
+    background: rgba(102, 126, 234, 0.07);
+    border-radius: 12px;
+    padding: 12px 14px 4px;
+}
+
+.slider-value {
+    display: inline-block;
+    min-width: 2.2rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: #4a5fc1;
+}
+
+.compare-stage {
+    position: relative;
+    width: 100%;
+    min-height: 320px;
+    max-height: 560px;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.compare-img {
+    display: block;
+    max-width: 100%;
+    max-height: 560px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.compare-after {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.compare-empty {
+    position: absolute;
+    color: #6c757d;
+    font-size: 1.05rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.alert-info a {
+    color: #084298;
+    text-decoration: underline;
+}
+
 @media (max-width: 576px) {
     .hero-title { font-size: 1.5rem; }
     .hero-card { padding: 24px; }
     .navbar-collapse { width: 95%; }
+    .compare-stage { min-height: 240px; }
+    .compare-img { max-height: 360px; }
 }

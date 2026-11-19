@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
 {% block title %}ImageMagic Pro — Enhance, Edit & Analyse Images Online{% endblock %}
-{% block description %}Free online image editor with 14 server-side tools: 2K/4K enhancement, grayscale, resize, brightness, contrast, rotate, blur, filters, portrait mode and cinematic looks. Also check if an image is editable or AI-generated.{% endblock %}
+{% block description %}Free online image editor with 16 server-side tools: 2K/4K enhancement, grayscale, resize, brightness, contrast, rotate, blur, filters, portrait mode and cinematic looks. Also check if an image is editable or AI-generated.{% endblock %}
 {% block canonical %}{{ site_url }}/{% endblock %}
-{% block og_title %}ImageMagic Pro — 14 Image Editing Tools in Your Browser{% endblock %}
+{% block og_title %}ImageMagic Pro — 16 Image Editing Tools in Your Browser{% endblock %}
 {% block og_description %}Upload, choose a feature and preview the result. Includes portrait mode, cinematic dark and AI-image indicators.{% endblock %}
 {% block twitter_title %}ImageMagic Pro — Online Image Editor{% endblock %}
-{% block twitter_description %}14 image tools plus editable and AI-image checks, powered by Flask and Pillow.{% endblock %}
+{% block twitter_description %}16 image tools plus editable and AI-image checks, powered by Flask and Pillow.{% endblock %}
 
 {% block structured_data %}
 <script type="application/ld+json">
@@ -17,7 +17,7 @@
     {
       "@type": "Question",
       "name": "Is ImageMagic Pro free to use?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. All 14 image editing features and both analysis checks are free and work in your browser." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. All 16 image editing features and both analysis checks are free and work in your browser." }
     },
     {
       "@type": "Question",
@@ -41,14 +41,14 @@
 
 {% block content %}
 <section class="hero-card">
-    <h2 class="hero-title">14 powerful image tools, one simple page</h2>
+    <h2 class="hero-title">16 powerful image tools, one simple page</h2>
     <p class="hero-copy">
         Upload any photo, pick a feature, adjust the settings and see the result instantly.
         Everything runs on the server with Flask, Pillow and NumPy — no installation needed.
     </p>
     <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-light btn-lg" href="#editor">Start editing an image</a>
-        <a class="btn btn-outline-light btn-lg" href="{{ url_for('features') }}">Browse all 14 features</a>
+        <a class="btn btn-light btn-lg" href="{{ url_for('enhance_studio') }}">Open Real-Time Enhance Studio</a>
+        <a class="btn btn-outline-light btn-lg" href="#editor">Use the 16 classic tools</a>
     </div>
 </section>
 
@@ -255,7 +255,7 @@
 </section>
 
 <section class="mt-5">
-    <h2 class="section-title">All 14 features</h2>
+    <h2 class="section-title">All 16 features</h2>
     <div class="row">
         {% for item in all_features %}
             <div class="col-md-4 col-lg-3">
